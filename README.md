@@ -62,7 +62,7 @@ python3 <skill>/scripts/shot.py "04-ReAct循环.html" --only desktop
 
 ## 约定
 
-- 全站深色仪器面板风格，语义色：蓝=模型、青=工具、琥珀=钩子/中间件、红=危险、绿=完成
+- 白底黑字，语义色：蓝=模型、青=工具、琥珀=钩子/中间件、红=危险、绿=完成
 - 只用原生 JS，不引框架，不用 module
 - 所有图形用 SVG / CSS 手绘，不用 emoji、不用外部图片
 - 交互组件统一走 `common.js` 的 `Player` / `AgentFlow` / `StatePanel` / `LogPanel`

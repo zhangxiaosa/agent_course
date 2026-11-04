@@ -220,7 +220,7 @@ __PAGER__
     pi += 1;
     drawPlan();
     if (pi === 3) {
-      $('#planRun').innerHTML += '<div style="margin-top:8px;font-size:11px;color:#c9a06b;line-height:1.55">第 3 步失败：日志上下文里没有 trace id。<b>计划里没写这一步会失败</b>，执行器只会记下来继续跑第 4 步——产出一份建立在缺失数据上的结论。</div>';
+      $('#planRun').innerHTML += '<div style="margin-top:8px;font-size:11px;color:#8a5a12;line-height:1.55">第 3 步失败：日志上下文里没有 trace id。<b>计划里没写这一步会失败</b>，执行器只会记下来继续跑第 4 步——产出一份建立在缺失数据上的结论。</div>';
     }
   }
   $('#planNext').addEventListener('click', planStep);
