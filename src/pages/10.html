@@ -1,0 +1,332 @@
+<header class="ch-head">
+  <span class="ch-no">10 / STREAM</span>
+  <h1>流式与前端</h1>
+  <p class="ch-lede">前面九章都在讲 agent 内部怎么转。这一章讲它<b>怎么把转的过程露出来</b>——因为一个跑 40 秒、调了十几个工具的 agent，如果只是转圈等结果，用户唯一能做的事就是怀疑它卡死了。</p>
+</header>
+
+<h2>先看一次真实的流</h2>
+
+<p>左边是事件源（agent loop 的节点），右边是前端渲染出来的界面。中间没有任何"批量刷新"——<b>左边冒出一个字符，右边同一时刻就出现同一个字符</b>，每个事件也同步写进下方的事件流。</p>
+
+<div class="sx">
+  <div class="col">
+    <div class="col-h"><span>agent loop · 事件源</span><span id="rf10">idle</span></div>
+    <div class="col-body">
+      <div class="rail" id="rail">
+        <div class="rail-node" data-k="io" data-n="start"><span>agent_start</span><span class="rn-k">before_agent</span></div>
+        <div class="rail-wire" data-w="w1"></div>
+        <div class="rail-node" data-k="model" data-n="model"><span>model_call</span><span class="rn-k">llm</span></div>
+        <div class="rail-wire" data-w="w2"></div>
+        <div class="rail-node" data-k="tool" data-n="tool"><span>tool_call</span><span class="rn-k">shell</span></div>
+        <div class="rail-wire" data-w="w3"></div>
+        <div class="rail-node" data-k="done" data-n="end"><span>agent_end</span><span class="rn-k">after_agent</span></div>
+      </div>
+    </div>
+    <div class="emit"><span class="emit-k">EMIT</span><span class="emit-c" id="chip">·</span><span class="emit-d" id="emitMeta">等待开始</span></div>
+  </div>
+
+  <div class="col">
+    <div class="col-h"><span>前端 · 消费事件</span><span id="uiState">idle</span></div>
+    <div class="col-body ui-body" id="uiArea">
+      <div class="ui-empty" id="uiEmpty">等待 <code>agent_start</code>…</div>
+      <div class="ui-run" id="uiRun" hidden><i></i><span id="uiRunTxt">running · tr_8f21</span></div>
+      <div class="bubble" id="bub" hidden>
+        <span class="who">assistant</span><span id="bubTxt"></span><span class="caret" id="bubCaret"></span>
+      </div>
+      <div class="term" id="term" hidden>
+        <div class="term-bar"><span>shell · local</span><span id="termStatus">running</span></div>
+        <pre id="termTxt"></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="bar">
+  <button class="btn" data-v="primary" id="play">播放事件流</button>
+  <button class="btn" id="spd">1×</button>
+  <button class="btn" data-v="ghost" id="reset10">重置</button>
+  <span class="step-no" id="clock">00:00.0</span>
+</div>
+
+<div class="caption" id="cap10" style="margin-top:8px">
+  <span class="cap-k">IDLE</span>
+  点「播放事件流」。注意三件事同时发生：左下角 EMIT 里冒出的字符、右侧界面里的字符、下方事件流里最新的那条 <code>llm_delta</code>。
+</div>
+
+<h2>事件流</h2>
+
+<div class="col">
+  <div class="col-h"><span>event bus</span><span id="evCount">0 events</span></div>
+  <div class="col-body ev-list" id="evs" style="max-height:240px"></div>
+</div>
+
+<h2>为什么 agent 比聊天更需要流式</h2>
+
+<p>普通聊天里，流式是<b>体验优化</b>：早几百毫秒看到字，感觉更快。agent 不是——agent 的流式是<b>可信度的来源</b>。</p>
+
+<div class="tbl-wrap">
+<table>
+  <colgroup><col style="width:26%"><col style="width:37%"><col style="width:37%"></colgroup>
+  <thead><tr><th>场景</th><th>不流式</th><th>流式</th></tr></thead>
+  <tbody>
+    <tr><td>一次 8 秒的回答</td><td>转圈 8 秒，然后一次性出现</td><td>第 0.4 秒就开始出字，8 秒时结束</td></tr>
+    <tr><td>一个 40 秒、12 次工具的任务</td><td>转圈 40 秒。<b>用户会以为卡死，然后刷新</b></td><td>能看到"正在读 app.py""正在查 CVE"，知道它没停</td></tr>
+    <tr><td>命令跑错了</td><td>跑完才看到结果，已经写进库了</td><td>参数一出现就能看出不对，来得及中断</td></tr>
+    <tr><td>模型开始胡说</td><td>只能等它说完</td><td>第一句话就能点停止，省下剩余 token</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>所以流式的价值不在"快"，在<b>"可见"</b>：把黑箱拆成一段段可观察的过程。这也是第 07 章可观测的前端投影——后端记 span，前端放事件，同一个东西的两种呈现。</p>
+
+<h2>事件怎么定义</h2>
+
+<p>后端每发生一件事，就吐一个带类型的事件。<b>粒度要够细，前端才能分别处理</b>：</p>
+
+<div class="tbl-wrap">
+<table>
+  <colgroup><col style="width:20%"><col style="width:16%"><col style="width:64%"></colgroup>
+  <thead><tr><th>事件</th><th>来源</th><th>前端该做什么</th></tr></thead>
+  <tbody>
+    <tr><td><code>agent_start</code></td><td>before_agent</td><td>清空上一次的界面，进入"运行中"，开计时器</td></tr>
+    <tr><td><code>llm_start</code></td><td>model_call 前</td><td>创建助手气泡（空的，带光标）</td></tr>
+    <tr><td><code>llm_delta</code></td><td>模型流式输出</td><td><b>追加字符</b>到气泡。不要重绘整条消息</td></tr>
+    <tr><td><code>llm_end</code></td><td>model_call 后</td><td>去掉光标，用 <code>final</code> 字段校正全文</td></tr>
+    <tr><td><code>tool_start</code></td><td>before_tool 后</td><td>创建工具卡片 / 终端框</td></tr>
+    <tr><td><code>tool_args</code></td><td>参数就绪</td><td>把参数填进框里，例如 <code>$ ping www.huawei.com</code></td></tr>
+    <tr><td><code>tool_delta</code></td><td>工具运行中</td><td>追加输出。注意它可能是<b>字节流</b>，不按行对齐</td></tr>
+    <tr><td><code>tool_end</code></td><td>after_tool 前</td><td>框闭合、显示 exit code、停光标</td></tr>
+    <tr><td><code>agent_end</code></td><td>after_agent</td><td>收口、汇总耗时与 token</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>为什么 <code>llm_start</code> 和 <code>llm_delta</code> 要分开？因为<b>第一个 delta 可能要等零点几秒（TTFT）</b>。这段时间前端需要先有一个"正在说话"的空气泡——否则用户看到的还是转圈，前面做的功夫全白费。</p>
+
+<h2>线上跑的是 SSE</h2>
+
+<p>前后端之间绝大多数用 <b>SSE（Server-Sent Events）</b>，不是 WebSocket。原因很简单：这是<b>单向</b>推送，SSE 就是 HTTP 上的一个长连接，不需要协议升级、能穿过大多数代理、断了浏览器会自动重连。</p>
+
+<pre><code>event: llm_delta
+data: {"seq":17,"text":"先测一下到 "}
+
+event: tool_start
+data: {"seq":24,"tool":"shell","id":"call_a3f"}
+
+event: tool_delta
+data: {"seq":28,"stream":"stdout","text":"64 bytes from 121.36.158.11"}</code></pre>
+
+<p>三个细节值得注意：</p>
+
+<ul>
+  <li><b><code>seq</code> 必须单调递增</b>。前端的追加逻辑要幂等：收到比当前小的 seq 直接丢弃。没有这个字段，重连之后你会看到重复的字。</li>
+  <li><b><code>event:</code> 是类型</b>，前端用 <code>addEventListener('llm_delta', ...)</code> 按类型注册处理器，而不是在回调里写一长串 <code>if/else</code>。</li>
+  <li><b>断线靠 <code>Last-Event-ID</code> 续传</b>。浏览器重连时自动带上最后收到的事件 id，服务端从那一条之后接着发。<b>没有这个机制，长任务一次网络抖动就得从头再来</b>——而 agent 的任务动辄几十秒，抖动概率比聊天高得多。</li>
+</ul>
+
+<div class="note" data-t="risk">
+  <div class="bar"></div>
+  <div class="body"><b>delta 拼出来的文本，不一定是最终文本</b>。模型可能被截断、被过滤，工具输出也可能乱序。<b><code>llm_end</code> / <code>tool_end</code> 里要带完整结果，前端以它为准</b>。只信 delta 的实现，会在长回答上偶发地少字、重复字——而且极难复现。</div>
+</div>
+
+<h2>这一章最容易被做错的地方</h2>
+
+<p><b>不是"要不要流式"，是"流的粒度"。</b>按 token 流太碎（一屏几十次重排），按整块流又回到转圈。<b>正确做法是按事件流，在事件内部按 delta 流</b>：界面结构的变更走事件（粗粒度、可预测），文本内容的增长走 delta（细粒度、可合并）。</p>
+
+<p>然后是取消。<b>用户点"停止"时，你要能真的停下来</b>——不只是关掉前端的订阅，还要让后端的 model_call 和 tool_call 收到中断信号。只关前端不关后端，是最常见的"假停止"：界面停了，token 还在烧。</p>
+
+<p>最后，把这十章的线收起来：<b>LLM 提供了能力，工具提供了触达，循环把两者接成行动，中间件把行动变得可控可查，流式把可控可查变成用户能看见的东西。</b>再往上一层就是产品——而产品要解决的，仍然是这十件事。</p>
+
+__PAGER__
+
+<script>
+(function () {
+  const railNodes = $$('.rail-node');
+  const wires = $$('.rail-wire');
+  const chip = $('#chip');
+  const emitMeta = $('#emitMeta');
+  const uiState = $('#uiState');
+  const cap = $('#cap10');
+  const evs = $('#evs');
+  const evCount = $('#evCount');
+  const clock = $('#clock');
+  const bub = $('#bub');
+  const bubTxt = $('#bubTxt');
+  const bubCaret = $('#bubCaret');
+  const term = $('#term');
+  const termTxt = $('#termTxt');
+  const termStatus = $('#termStatus');
+  const uiEmpty = $('#uiEmpty');
+  const uiRun = $('#uiRun');
+  const I0 = cap.innerHTML;
+
+  const LLM = '先测一下到 www.huawei.com 的连通性，再看丢包率——如果 100% 丢包，多半是链路或防火墙；只是延迟高，那是路由问题。';
+  const CMD = 'ping www.huawei.com';
+  const OUT = 'PING www.huawei.com (121.36.158.11): 56 data bytes\n' +
+              '64 bytes from 121.36.158.11: icmp_seq=0 ttl=52 time=28.4 ms\n' +
+              '64 bytes from 121.36.158.11: icmp_seq=1 ttl=52 time=27.9 ms\n\n' +
+              '--- www.huawei.com ping statistics ---\n' +
+              '2 packets transmitted, 2 received, 0.0% packet loss';
+
+  let t = 0, seq = 0, running = false, curRow = null, SPD = 1;
+  // 低动效偏好下不做逐字动画，直接呈现完整结果（也是 shot.py 默认的 reduce 模式）
+  const RM = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const pad = function (n, w) { return String(n).padStart(w, '0'); };
+  function fmt(ms) {
+    const s = ms / 1000;
+    return pad(Math.floor(s / 60), 2) + ':' + pad(Math.floor(s % 60), 2) + '.' + Math.floor((ms % 1000) / 100);
+  }
+  function paint() { clock.textContent = fmt(t); }
+  const sleep = function (ms) {
+    if (RM) return Promise.resolve();
+    return new Promise(function (r) { setTimeout(r, ms / SPD); });
+  };
+
+  function activate(name) {
+    railNodes.forEach(function (n) { n.classList.toggle('on', n.dataset.n === name); });
+    const order = ['start', 'model', 'tool', 'end'];
+    const idx = order.indexOf(name);
+    wires.forEach(function (w, i) { w.classList.toggle('live', i < idx); });
+  }
+
+  function row(ev, payload, kind) {
+    if (RM) t += 340;
+    seq += 1;
+    if (curRow) curRow.classList.remove('on');
+    const d = document.createElement('div');
+    d.className = 'ev on';
+    if (kind) d.dataset.k = kind;
+    d.innerHTML = '<span class="ev-t">' + (t / 1000).toFixed(1) + 's</span>' +
+                  '<span class="ev-n"><b>event:</b> ' + ev + ' <span class="ev-p"></span></span>';
+    d.querySelector('.ev-p').textContent = payload || '';
+    evs.appendChild(d);
+    evs.scrollTop = evs.scrollHeight;
+    curRow = d;
+    evCount.textContent = seq + ' events';
+    return d;
+  }
+
+  async function type(text, target, kind, evName) {
+    const r = row(evName || 'llm_delta', '', kind);
+    const p = r.querySelector('.ev-p');
+    if (RM) {
+      target.textContent += text;
+      chip.textContent = text.slice(-1);
+      t += text.length * 14; paint();
+      p.textContent = 'data: {"seq":' + seq + ',"text":"' + text.slice(-16) + '"}';
+      return;
+    }
+    let s = '';
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      s += ch;
+      target.textContent += ch;                 // 右：同一 tick 上屏
+      chip.textContent = ch === ' ' ? '·' : ch;  // 左：同一 tick 冒字
+      p.textContent = 'data: {"seq":' + seq + ',"text":"' + s.slice(-16) + '"}';
+      t += 14;
+      paint();
+      if (i % 10 === 0) await sleep(0);
+      else await sleep(9);
+    }
+  }
+
+  async function play() {
+    if (running) return;
+    reset();
+    running = true;
+    $('#play').textContent = '播放中…';
+    $('#play').disabled = true;
+
+    activate('start');
+    cap.innerHTML = '<span class="cap-k">agent_start</span>前端收到第一个事件：清界面、进运行态、开计时。<b>此时还没有任何内容</b>——用户看到的应该是"正在运行"，不是白屏。';
+    row('agent_start', '{"trace_id":"tr_8f21","model":"claude-sonnet"}');
+    uiEmpty.hidden = true;
+    uiRun.hidden = false;
+    uiState.textContent = 'running';
+    emitMeta.textContent = 'agent_start';
+    await sleep(430);
+
+    activate('model');
+    cap.innerHTML = '<span class="cap-k">llm_start</span>模型开始生成。<b>注意气泡是先出现的、空的</b>——第一个 delta 要等 TTFT，这段等待必须被"一个正在说话的空框"填住。';
+    row('llm_start', '{"id":"m1","model":"claude-sonnet"}', 'llm');
+    bub.hidden = false;
+    emitMeta.textContent = 'llm_start';
+    await sleep(520);
+
+    cap.innerHTML = '<span class="cap-k">llm_delta</span>最关键的一段：<b>左边每冒出一个字，右边同一时刻落下一个字</b>。不是分段刷新，是逐字符同步。';
+    emitMeta.textContent = 'llm_delta · 逐字';
+    await type(LLM, bubTxt, 'llm');
+
+    cap.innerHTML = '<span class="cap-k">llm_end</span>生成结束。<b>前端最后做的不是"停打字"，是用 final 校正全文</b>——delta 拼出来的版本和最终版不一定一致。';
+    row('llm_end', '{"id":"m1","finish":"stop","tokens":42}', 'llm');
+    bubCaret.style.display = 'none';
+    emitMeta.textContent = 'llm_end';
+    await sleep(460);
+
+    activate('tool');
+    cap.innerHTML = '<span class="cap-k">tool_start</span>模型决定调工具。<b>终端框是在这一刻建出来的</b>，不是等命令跑完——用户先看到一个空壳，知道"它要去执行了"。';
+    row('tool_start', '{"tool":"shell","call_id":"a3f"}', 'tool');
+    term.hidden = false;
+    emitMeta.textContent = 'tool_start';
+    await sleep(480);
+
+    cap.innerHTML = '<span class="cap-k">tool_args</span>参数到了，填进框里。<b>这一步的价值是"可拦截"</b>：命令一显示，用户就知道它要干什么了（第 08 章的审批就靠这个）。';
+    row('tool_args', '{"cmd":"ping www.huawei.com"}', 'tool');
+    termTxt.textContent = '$ ';
+    emitMeta.textContent = 'tool_args';
+    for (let i = 0; i < CMD.length; i++) {
+      termTxt.textContent += CMD[i];
+      chip.textContent = CMD[i] === ' ' ? '·' : CMD[i];
+      t += 22; paint();
+      await sleep(14);
+    }
+    termTxt.textContent += '\n';
+    await sleep(240);
+
+    cap.innerHTML = '<span class="cap-k">tool_delta</span>工具在跑，输出逐块回来。<b>它是字节流，不是行</b>——你可能先收到半行，下一块才补齐。前端按块追加即可，不要按行解析再重排。';
+    emitMeta.textContent = 'tool_delta · 逐字';
+    await type(OUT, termTxt, 'tool', 'tool_delta');
+
+    cap.innerHTML = '<span class="cap-k">tool_end</span>框闭合，显示 exit code。<b>从这个时刻起这个框可以被折叠、复制、审计</b>——它从"过程"变成了"记录"。';
+    row('tool_end', '{"call_id":"a3f","exit":0,"ms":2840}', 'tool');
+    termStatus.textContent = 'exit 0 · 2.8s';
+    emitMeta.textContent = 'tool_end';
+    await sleep(430);
+
+    activate('end');
+    cap.innerHTML = '<span class="cap-k">agent_end</span>收口。前端汇总耗时、token、工具次数，<b>把一次"过程"折成一条"结果"</b>。到这里，用户才真正看见 agent 做了什么。';
+    row('agent_end', '{"ms":6120,"tools":1,"tokens":94}');
+    uiState.textContent = 'done';
+    emitMeta.textContent = 'done';
+    running = false;
+    $('#play').textContent = '重播';
+    $('#play').disabled = false;
+  }
+
+  function reset() {
+    evs.innerHTML = ''; curRow = null; seq = 0; t = 0;
+    evCount.textContent = '0 events';
+    chip.textContent = '·'; emitMeta.textContent = '等待开始';
+    uiState.textContent = 'idle';
+    bub.hidden = true; bubTxt.textContent = ''; bubCaret.style.display = '';
+    term.hidden = true; termTxt.textContent = ''; termStatus.textContent = 'running';
+    uiEmpty.hidden = false; uiRun.hidden = true;
+    railNodes.forEach(function (n) { n.classList.remove('on'); });
+    wires.forEach(function (w) { w.classList.remove('live'); });
+    cap.innerHTML = I0;
+    clock.textContent = '00:00.0';
+    $('#play').textContent = '播放事件流';
+    $('#play').disabled = false;
+    running = false;
+  }
+
+  $('#spd').addEventListener('click', function () {
+    SPD = SPD === 1 ? 3 : 1;
+    this.textContent = SPD + '×';
+  });
+  $('#play').addEventListener('click', play);
+  $('#reset10').addEventListener('click', reset);
+  reset();
+})();
+</script>

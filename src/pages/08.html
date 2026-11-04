@@ -1,0 +1,224 @@
+<header class="ch-head">
+  <span class="ch-no">08 / APPROVAL</span>
+  <h1>人工审批中间件</h1>
+  <p class="ch-lede">前面所有中间件都在"改数据"，只有这一个在<b>改控制流</b>：它能让循环停下来，等人说话。挂在 <span class="tag" data-c="hook">before_tool</span>——因为它是最后一个"命令还没跑"的位置。</p>
+</header>
+
+<h2>先看一个具体的危险</h2>
+
+<p>任务很普通：<code>/var</code> 快满了，让 agent 清一下。它很合理地选了这条命令。下面的演示走到 <code>before_tool</code> 时会真的挂起，<b>你来点同意或拒绝</b>，两条路会走到完全不同的结局。</p>
+
+<div class="stage wide">
+
+  <div class="flow-cell">
+    <div class="col">
+      <div class="col-h"><span>before_tool · 闸门</span><span id="gateflag"></span></div>
+      <div class="col-body">
+        <div class="flow" id="flow"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="col-h"><span>checkpoint</span></div>
+    <div class="col-body" id="state"></div>
+  </div>
+
+  <div class="col">
+    <div class="col-h"><span>messages 记录</span></div>
+    <div class="col-body log-body" id="log"></div>
+  </div>
+
+</div>
+
+<div class="bar">
+  <button class="btn" data-v="primary" id="next">下一步</button>
+  <button class="btn" id="prev" disabled>上一步</button>
+  <button class="btn" data-v="ghost" id="reset">重置</button>
+  <span class="step-no" id="total"></span>
+</div>
+
+<div id="gate"></div>
+
+<div class="caption" id="cap" style="margin-top:8px">
+  <span class="cap-k">READY</span>
+  agent 收到任务："<code>/var</code> 快满了，清一下缓存"。点「下一步」看它选了哪条命令。
+</div>
+
+<h2>为什么必须卡在 before_tool</h2>
+
+<p>因为中间件能"看见"参数的最早时刻，和能"阻止执行"的最晚时刻，<b>都在这一点</b>。再往前（before_model），参数还没生成，你不知道要拦什么；再往后（after_tool），命令已经跑完了，你只能追认。</p>
+
+<div class="tbl-wrap">
+<table>
+  <colgroup><col style="width:22%"><col style="width:34%"><col style="width:44%"></colgroup>
+  <thead><tr><th>挂载点</th><th>能看见什么</th><th>能不能阻止</th></tr></thead>
+  <tbody>
+    <tr><td><b>before_model</b></td><td>历史、目标</td><td>能阻止"调模型"，但拦不到具体命令——参数还没生成</td></tr>
+    <tr><td><b>after_model</b></td><td>即将调用的工具名与参数</td><td>能，但这里拦下等于丢弃模型的输出，语义不清（模型会以为自己发出去了）</td></tr>
+    <tr><td><b>before_tool</b></td><td>工具名 + 完整参数</td><td><b>能，而且是唯一语义清晰的位置</b>——拒绝就是"这条命令没执行"</td></tr>
+    <tr><td><b>after_tool</b></td><td>执行结果</td><td>不能。只能事后补偿（回滚、告警）</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>规则怎么写</h2>
+
+<p>"危险"不是一个字符串匹配能解决的。<code>rm -rf</code> 很危险，但 <code>rm -rf ./build</code> 是日常工作；<code>git push</code> 看起来无害，但 <code>--force</code> 到 main 是灾难。实际系统里通常是<b>几个信号叠加</b>：</p>
+
+<div class="tbl-wrap">
+<table>
+  <colgroup><col style="width:20%"><col style="width:42%"><col style="width:38%"></colgroup>
+  <thead><tr><th>信号</th><th>看什么</th><th>典型规则</th></tr></thead>
+  <tbody>
+    <tr><td><b>命令动词</b></td><td>破坏性动作</td><td><code>rm</code>、<code>dd</code>、<code>mkfs</code>、<code>DROP TABLE</code>、<code>truncate</code></td></tr>
+    <tr><td><b>作用范围</b></td><td>有没有通配符 / 递归 / 绝对路径</td><td><code>*</code>、<code>-r</code>、<code>/**</code>、系统目录（<code>/etc</code>、<code>/var</code>、<code>~/.ssh</code>）</td></tr>
+    <tr><td><b>外发方向</b></td><td>数据是否离开本机</td><td><code>curl -d @file</code>、<code>scp</code>、发邮件、写外部 API</td></tr>
+    <tr><td><b>权限升级</b></td><td>是否要求更高权限</td><td><code>sudo</code>、<code>chmod 777</code>、改 SSH 配置</td></tr>
+    <tr><td><b>不可逆</b></td><td>有没有回退路径</td><td>删库、强推、覆盖未提交的工作区</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>规则命中后有三种结局，不止两种：</p>
+
+<ul>
+  <li><b>放行</b>——用户点了同意，工具照原参数执行。</li>
+  <li><b>拒绝</b>——工具<b>不执行</b>，但依然往 messages 里写一条 <code>role:"tool"</code> 的结果："用户不同意执行"。模型收到的是一个事实，不是一个错误。</li>
+  <li><b>改写后放行</b>——把 <code>rm -rf /var/cache/*</code> 改成 <code>find /var/cache -type f -mtime +7 -delete</code>，让用户确认新命令。<b>这是最实用的一种</b>：多数时候用户不是要拒绝，是要改得更保守。</li>
+</ul>
+
+<div class="note" data-t="risk">
+  <div class="bar"></div>
+  <div class="body"><b>审批机制最大的敌人是疲劳</b>。一个 agent 每次跑都弹三次确认，用户第三天就会无脑点"同意"——那时候审批层不但没保护你，还给了你虚假的安全感。<b>规则要准，不要多</b>：只拦真正不可逆的，剩下的用"改写后放行"或 dry-run 兜住。</div>
+</div>
+
+<h2>三个容易做错的地方</h2>
+
+<p><b>① 超时默认怎么处理。</b>用户去开会了，审批卡挂了 10 分钟没人点。默认放行等于把闸门拆了；<b>正确做法是 fail-closed</b>——超时即拒绝，让模型走"用户不同意"那条路径，任务降级但不闯祸。</p>
+
+<p><b>② 拒绝要给模型留退路。</b>只回一句"不同意"，模型很可能原地重试同一条命令（它不知道为什么）。<b>把原因带上</b>："用户不同意执行 rm -rf /var/cache/*，理由是范围过大"——模型下一轮就会换 <code>find -mtime</code>，这正是上面演示里发生的事。</p>
+
+<p><b>③ 审批要留审计。</b>谁批的、什么时候、批的是哪条命令、当时看到的参数是什么。<b>事后追责靠的不是日志搜索，是结构化的审批记录</b>。这一条和第 07 章的可观测是同一套东西：审批事件本身就是一个 span。</p>
+
+__PAGER__
+
+<script>
+(function () {
+  const flow = new AgentFlow($('#flow'), { nodes: STD_NODES, edges: STD_EDGES });
+  const sp = new StatePanel($('#state'));
+  const log = new LogPanel($('#log'));
+  const cap = $('#cap');
+  const gate = $('#gate');
+  const flag = $('#gateflag');
+  const INTRO = cap.innerHTML;
+
+  let gateOpen = false;
+
+  const BASE = [
+    {
+      node: ['model'], edges: ['e_start', 'e_bm', 'e_m'],
+      state: { turn: 1, messages: 2, tool: '—', gate: '—', decision: '—' },
+      cap: ['model_call', '<code>/var</code> 满了，模型的判断是"清缓存"。它生成了 <code>run_cmd({"cmd":"rm -rf /var/cache/*"})</code>。<b>语法完全合法，意图也合理</b>——这正是危险的地方：看起来没有任何问题。'],
+      msg: ['assistant', '清掉缓存目录。<code>run_cmd({"cmd":"rm -rf /var/cache/*"})</code>']
+    },
+    {
+      node: ['b_tool'], edges: ['e_am_bt'],
+      state: { turn: 1, messages: 2, tool: 'run_cmd', gate: '<b>D-01 命中</b>', decision: '待定' },
+      cap: ['before_tool · 规则命中', '参数进了规则引擎：<code>rm</code> + <code>-rf</code> + 通配符 <code>*</code> + 系统目录 <code>/var</code>。<b>四个信号叠加，命中 D-01</b>。闸门关闭。'],
+      flag: 'HOLD'
+    },
+    {
+      node: ['b_tool'], edges: [],
+      state: { turn: 1, messages: 2, tool: 'run_cmd', gate: '<b>D-01 命中</b>', decision: '<b>挂起</b>' },
+      cap: ['PAUSED · 工具还没执行', '<b>循环真的停在这里了。</b>工具调用还没有发生——右侧 messages 里没有任何 tool 消息。下面这张卡就是用户在此时看到的东西。'],
+      open: true
+    }
+  ];
+
+  const APPROVE = [
+    {
+      node: ['tool', 'a_tool'], edges: ['e_bt', 'e_t'],
+      state: { turn: 1, messages: 4, tool: 'run_cmd', gate: 'D-01 命中', decision: '<b>同意</b>' },
+      cap: ['tool_call · 放行', '用户点了同意，命令按原参数执行。<b>注意 messages 的变化：现在才出现 tool 结果。</b>'],
+      msg: ['tool', 'deleted 1,842 files<br>freed 3.1 GB<br>exit 0 · 480ms']
+    },
+    {
+      node: ['model'], edges: ['e_loop', 'e_bm', 'e_m', 'e_am_bt', 'e_bt'],
+      state: { turn: 2, messages: 5, tool: 'run_cmd', gate: 'D-01 命中', decision: '同意' },
+      cap: ['agent_end', '任务完成。用户承担了这次判断的责任，agent 只是执行<b>已被批准的</b>动作。'],
+      msg: ['assistant', '已清理 1,842 个文件，释放 3.1 GB。<code>/var</code> 使用率从 96% 降到 41%。']
+    }
+  ];
+
+  const REJECT = [
+    {
+      node: ['tool'], edges: ['e_bt', 'e_t'],
+      state: { turn: 1, messages: 4, tool: 'run_cmd', gate: 'D-01 命中', decision: '<b>拒绝</b>' },
+      cap: ['tool_call · 未执行，但仍有结果', '<b>工具没有运行。</b>但 messages 里照样多了一条 <code>role:"tool"</code> 的消息——内容是"用户不同意执行"。<b>循环完全正常地继续了</b>，模型不会卡死，也不会报错。'],
+      msg: ['tool', '<b>用户不同意执行</b><br>原因：<code>rm -rf /var/cache/*</code> 范围过大，可能误删正在使用的缓存。<br>未执行。']
+    },
+    {
+      node: ['model'], edges: ['e_loop', 'e_bm', 'e_m', 'e_am_bt', 'e_bt'],
+      state: { turn: 2, messages: 5, tool: 'run_cmd', gate: 'D-01 命中', decision: '拒绝 → 改写' },
+      cap: ['model_call · 换方案', '模型拿到原因后没有重试原命令，而是<b>换了一个更保守的方案</b>：只删 7 天前的文件，而且先 dry-run 一次。这就是"拒绝要带原因"的价值——拒绝给了它一个可以学习的信号。'],
+      msg: ['assistant', '明白，范围确实过大。<br>改用 <code>find /var/cache -type f -mtime +7 -delete</code>，先 dry-run 确认影响面。']
+    }
+  ];
+
+  let player;
+
+  function resetAll() {
+    flow.reset(); sp.render({}); log.clear(); gate.innerHTML = ''; flag.textContent = '';
+    gateOpen = false;
+    if (player) player.steps = BASE;
+    log.push('system', '你是运维 agent。可用工具：<code>run_cmd</code> / <code>read_file</code>。');
+    log.push('user', '/var 快满了，清一下缓存，别把服务搞挂。');
+    cap.innerHTML = INTRO;
+  }
+
+  function renderGate() {
+    gateOpen = true;
+    gate.innerHTML =
+      '<div class="approve" style="margin-top:2px">' +
+      '<div class="approve-h"><span>需要你确认 · run_cmd</span><span>D-01</span></div>' +
+      '<div class="approve-q">agent 想执行下面这条命令。它匹配了<b>递归删除 + 通配符 + 系统目录</b>三条规则，已暂停。</div>' +
+      '<div class="approve-cmd">$ rm -rf /var/cache/*</div>' +
+      '<div class="approve-row">' +
+      '<button class="btn" data-v="danger" id="deny">拒绝</button>' +
+      '<button class="btn" data-v="primary" id="allow">同意执行</button>' +
+      '</div></div>';
+
+    $('#deny').addEventListener('click', function () { choose(REJECT); });
+    $('#allow').addEventListener('click', function () { choose(APPROVE); });
+  }
+
+  function choose(branch) {
+    gateOpen = false;
+    gate.innerHTML = '';
+    flag.textContent = '';
+    player.steps = BASE.concat(branch);
+    player.next();
+  }
+
+  player = new Player({
+    steps: BASE, min: 0,
+    box: { next: $('#next'), prev: $('#prev'), reset: $('#reset'), total: $('#total') },
+    resetAll: resetAll,
+    apply: function (s) {
+      flow.highlight(s.node, s.edges);
+      sp.render(s.state);
+      cap.innerHTML = '<span class="cap-k">' + s.cap[0] + '</span>' + s.cap[1];
+      if (s.msg) log.push(s.msg[0], s.msg[1]);
+      if (s.flag) flag.textContent = s.flag;
+      if (s.open) renderGate();
+    }
+  });
+
+  // 闸门开着时，禁止用「下一步」跳过
+  const rawNext = player.next.bind(player);
+  player.next = function () { if (gateOpen) return; rawNext(); };
+
+  resetAll();
+})();
+</script>

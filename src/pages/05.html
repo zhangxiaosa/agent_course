@@ -1,0 +1,150 @@
+<header class="ch-head">
+  <span class="ch-no">05 / MIDDLEWARE</span>
+  <h1>中间件全景</h1>
+  <p class="ch-lede">你见过的所有"agent 能力"——压缩记忆、卸载大输出、记录 trace、拦截危险命令、失败重试、验收打回——<b>没有一个是新功能</b>。它们全都是同一套钩子的不同用法。</p>
+</header>
+
+<h2>钩子在哪</h2>
+
+<p>第 04 章的 4 节点简化图，展开就是下面这 8 个节点。<span class="tag" data-c="model">蓝</span> 是模型侧，<span class="tag" data-c="tool">青</span> 是工具侧，<span class="tag" data-c="hook">琥珀</span> 是钩子。<b>钩子不是新节点，是"两个节点之间那一瞬间"</b>——在它里面你可以读 state、改 state、甚至决定不去下一个节点。</p>
+
+<div class="stage" style="grid-template-columns:minmax(0,1fr)">
+  <div class="col">
+    <div class="col-h"><span>agent 生命周期 · 8 个钩子</span></div>
+    <div class="col-body">
+      <div class="flow" id="flow" style="height:300px"></div>
+    </div>
+  </div>
+</div>
+
+<p>自上而下、再自下而上，走完一圈就是一轮。左边那条竖线是回环：<code>after_tool</code> 走完，回到 <code>before_model</code>，下一轮开始。<b>中间件能插的位置，只有这 8 个。</b></p>
+
+<h2>六个中间件 × 八个钩子</h2>
+
+<p class="lede">纵向是时间，横向是六个中间件。点任意一格，看它在那一个瞬间具体做什么。空格也点了会告诉你<b>为什么那里不能挂</b>。</p>
+
+<div class="mx">
+  <table class="mx-table" id="mxtable">
+    <thead>
+      <tr>
+        <th></th>
+        <th>上下文压缩</th><th>工具卸载</th><th>可观测</th>
+        <th>人工审批</th><th>model retry</th><th>evaluator</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<div class="detail" id="mxdetail" style="margin-top:12px;min-height:150px"></div>
+
+<h2>为什么这件事值得单独讲</h2>
+
+<p>因为它是<b>唯一一处可以不改模型、不改工具、不改循环，只加代码就能改变 agent 行为的地方</b>。想让它记得更久，不用换模型，在 before_model 加压缩；想让它不出事故，不用改 prompt，在 before_tool 加审批；想让它别在半路停下，不用重训，在 after_agent 加验收。</p>
+
+<p>反过来说，如果你要做的事<b>没法表达成"某个钩子上的一个函数"</b>，那它就不是中间件，而是循环本身的一部分——你就得改图。</p>
+
+<div class="note" data-t="good">
+  <div class="bar"></div>
+  <div class="body"><b>一句话记住</b>：中间件 = <code>(hook, handler)</code>。handler 拿到 state，返回 state 或者一个跳转指令。没有第九种原语。第 06–09 章讲的六个中间件，全部落在这张表里。</div>
+</div>
+
+<h2>这六个各自治什么病</h2>
+
+<div class="tbl-wrap">
+<table>
+  <colgroup><col style="width:18%"><col style="width:15%"><col style="width:37%"><col style="width:30%"></colgroup>
+  <thead><tr><th>中间件</th><th>挂在</th><th>治什么</th><th>代价</th></tr></thead>
+  <tbody>
+    <tr><td><b>上下文压缩</b></td><td>before_model</td><td>历史只增不减，第 30 轮 prompt 里全是废目录列表</td><td>摘要有损，细节丢了就找不回</td></tr>
+    <tr><td><b>工具卸载</b></td><td>after_tool</td><td>一次 <code>ls -R</code> 把几万行灌进上下文</td><td>模型要多花一次调用来读回全文</td></tr>
+    <tr><td><b>可观测</b></td><td>全部</td><td>出问题时你不知道它当时看到了什么</td><td>日志本身占存储，脱敏要额外做</td></tr>
+    <tr><td><b>人工审批</b></td><td>before_tool</td><td>模型直接生成 <code>rm -rf</code>，框架照单执行</td><td>每次打断都有人工成本，会劝退高频场景</td></tr>
+    <tr><td><b>model retry</b></td><td>after_model</td><td>429 / 超时 / 5xx 直接让整个 run 挂掉</td><td>重试放大会把上游打得更惨，必须退避</td></tr>
+    <tr><td><b>evaluator</b></td><td>after_agent</td><td>模型说"做完了"，其实只做了一半</td><td>多一次判定调用；判定错了会无限打回</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>注意每一行的"代价"都不是零。<b>中间件不是免费的开关，是用一种成本换另一种成本</b>——这也是为什么真实的 agent 系统里通常只开其中三四个，而不是六个全开。</p>
+
+__PAGER__
+
+<script>
+(function () {
+  new AgentFlow($('#flow'), { nodes: STD_NODES, edges: STD_EDGES });
+  $('#flow').querySelectorAll('.fnode').forEach(function () { });
+
+  const HOOKS = [
+    ['before_agent', '运行开始前'],
+    ['before_model', '调模型前'],
+    ['after_model',  '模型返回后'],
+    ['before_tool',  '执行工具前'],
+    ['after_tool',   '工具返回后'],
+    ['after_agent',  '运行结束前'],
+    ['on_jump',      '控制流跳转']
+  ];
+  const COLS = ['压缩', '卸载', '可观测', '审批', '重试', '评审'];
+
+  const CELL = {
+    'before_agent|可观测': [1, '创建 trace_id、记下用户输入与模型/工具版本。<b>这是整条 trace 的根 span</b>，后面所有节点都挂在这上面。'],
+    'before_model|压缩': [1, '上下文超阈值就在这里动手：把中间若干轮交给一个小模型做摘要，用一条 summary 消息替换掉它们，<b>写回 checkpoint 的 messages</b>，再调模型。模型这一轮看到的已经是压缩后的历史。'],
+    'before_model|可观测': [1, '记下这一轮实际发出去的 prompt（或它的 hash）、prompt token 数、模型名。如果压缩中间件改了 messages，差异正好发生在这一步之前，trace 里能看见。'],
+    'after_model|重试': [2, '模型调用失败（429 / 超时 / 5xx）在这里拦下：不退出循环，直接 <code>jump to before_model</code> 重来，带指数退避 1s → 2s → 4s + jitter。'],
+    'after_model|可观测': [1, '记录 completion token、首 token 延迟、<code>finish_reason</code>、这一轮到底调了哪个工具、参数是什么。取值失败时也要记一条——失败的调用同样要算进账本。'],
+    'before_tool|审批': [3, '参数过一遍敏感规则（<code>rm -rf</code>、写生产库、转账、外发邮件）。命中就<b>挂起</b>，把工具名和参数弹给用户。同意则继续；拒绝则直接产出一条 <code>role: "tool"</code> 的消息：<b>用户不同意执行</b>——模型照常收到，循环继续。'],
+    'before_tool|可观测': [1, '记录工具名、参数（脱敏后）、发起时刻。和 after_tool 的结束时刻配成一对，就是这一格的耗时。'],
+    'after_tool|卸载': [1, '输出超过阈值就裁到末尾 N 个字符，中间插入「已省略 xx 字符，如需完整内容请加载 result_&#8203;&lt;tool_call_id&gt;.txt」。模型要全文，再调一次 read_result 工具。'],
+    'after_tool|可观测': [1, '记录耗时、输出字节数、exit code。输出被卸载过的话，同时记下原始大小——否则账本会少算。'],
+    'after_agent|评审': [2, '模型说 <code>finish_reason=stop</code>，judge 拿着<b>最初的 goal</b> 复核：真完成了吗？没完成 → 把 feedback 作为一条 user 消息插回去，<code>jump to before_model</code> 继续干。'],
+    'after_agent|可观测': [1, '关闭根 span，聚合总耗时、总 token、工具调用次数、重试次数。这一条是账单和 SLA 的唯一来源。'],
+    'on_jump|重试': [2, 'jump 不是节点，是控制流原语：把执行指针挪到指定节点，并把「为什么跳」写进 state。重试跳回 before_model。'],
+    'on_jump|评审': [2, '验收失败同样走 jump，跳回 before_model，但这次 state 里多一条 feedback。同一个原语，两种用途。']
+  };
+
+  const WHY = {
+    '压缩': '压缩只需要在<b>模型读历史之前</b>动手。放在 after_model 就晚了——模型已经把完整历史读进去了，钱也花完了，再压只能省下一次，省不了这一次。',
+    '卸载': '卸载要在<b>工具输出刚产生</b>的那一刻做，因为那时你才拿得到 tool_call_id，才能告诉模型"完整内容存在哪个文件里"。换个位置，输出来源已经丢了。',
+    '审批': '审批必须发生在<b>执行之前</b>。after_tool 再拦，命令已经跑完了——那叫事后追责，不叫审批。',
+    '重试': '重试需要同时满足两条：失败已经发生，循环还没退出。after_model 是唯一同时满足的位置。',
+    '评审': '验收要等模型<b>自己说完</b>才能做。放在循环中间，你分不清"这一轮还没干完"和"它以为干完了"。',
+    '可观测': '这一格本来就不空——可观测在每个节点都有。'
+  };
+
+  const tbody = $('#mxtable tbody');
+  tbody.innerHTML = HOOKS.map(function (h) {
+    return '<tr><th class="mx-rowname"><b>' + h[0] + '</b><br>' + h[1] + '</th>' +
+      COLS.map(function (c) {
+        const k = h[0] + '|' + c;
+        const v = CELL[k];
+        return '<td><button class="mx-cell" data-k="' + k + '"' + (v ? ' data-v="' + v[0] + '"' : '') + ' aria-label="' + h[0] + ' 上的 ' + c + '"></button></td>';
+      }).join('') + '</tr>';
+  }).join('');
+
+  const det = $('#mxdetail');
+  function show(k) {
+    $$('.mx-cell').forEach(function (c) { c.classList.remove('sel'); });
+    const el = $$('.mx-cell').filter(function (c) { return c.dataset.k === k; })[0];
+    if (el) el.classList.add('sel');
+
+    const row = k.split('|')[0];
+    const col = k.split('|')[1];
+    const v = CELL[k];
+
+    if (v) {
+      det.innerHTML = '<span class="dl">' + row + ' · ' + col + '</span>' +
+        '<h3>' + col + ' 在 ' + row + ' 做什么</h3>' +
+        '<p>' + v[1] + '</p>';
+    } else {
+      det.innerHTML = '<span class="dl">' + row + ' · ' + col + '</span>' +
+        '<h3>这一格是空的</h3>' +
+        '<p>' + (WHY[col] || '') + '</p>';
+    }
+  }
+
+  $$('.mx-cell').forEach(function (c) {
+    c.addEventListener('click', function () { show(c.dataset.k); });
+  });
+  show('before_model|压缩');
+})();
+</script>

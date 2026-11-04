@@ -1,0 +1,249 @@
+<header class="ch-head">
+  <span class="ch-no">03 / TOPOLOGY</span>
+  <h1>Agent 的形态谱系</h1>
+  <p class="ch-lede">同样的模型、同样的工具，换个拓扑就能解决完全不同的问题。<b>形态不是风格选择，是成本与可控性的权衡</b>——越自由的结构越能处理未知路径，也越难预测它下一步会干什么。</p>
+</header>
+
+<p>五种形态，按"自由度从低到高"排：<b>CoT 是一条线，ToT 是一棵树，Plan-and-Execute 是两段，工作流是一张人写死的图，ReAct 是一个环</b>。点上面的标签逐个看，每个都给了一个能上手玩的示意。</p>
+
+<div class="seg" id="seg">
+  <button class="seg-btn" data-v="cot" aria-selected="true">Chain of Thought</button>
+  <button class="seg-btn" data-v="tot" aria-selected="false">Tree of Thought</button>
+  <button class="seg-btn" data-v="plan" aria-selected="false">Plan-and-Execute</button>
+  <button class="seg-btn" data-v="wf" aria-selected="false">工作流 DAG</button>
+  <button class="seg-btn" data-v="react" aria-selected="false">ReAct</button>
+</div>
+
+<!-- ===== CoT ===== -->
+<div class="pane on" data-p="cot">
+  <div class="fig short">
+    <div class="chain">
+      <span class="cd">问题</span>
+      <span class="ar"></span>
+      <span class="cd">步骤 1<span class="cs">拆解</span></span>
+      <span class="ar"></span>
+      <span class="cd">步骤 2<span class="cs">代入</span></span>
+      <span class="ar"></span>
+      <span class="cd ok">结论</span>
+    </div>
+    <div class="loopnote">每步输出 → 下一步输入 · 单向</div>
+  </div>
+  <div class="caption"><span class="cap-k">一条直线，没有岔路</span>每一步的输出直接成为下一步的输入。<b>错了没有回头路</b>——想改只能从头再来。</div>
+  <div class="mrow">
+    <div class="mcard" data-c="model"><span class="mc-t">怎么工作</span><span class="mc-d">一次调用里让它先写步骤、再给结论（CoT prompting）；或工程上拆成串行多次调用，上一步输出当下一步输入。你说的"多调几次 llm 逼它思考"，是后者。</span></div>
+    <div class="mcard" data-c="model"><span class="mc-t">什么时候用</span><span class="mc-d">路径唯一、不需要外部信息、步骤可预见。算术、格式转换、单文档摘要。</span></div>
+    <div class="mcard" data-c="hook"><span class="mc-t">代价</span><span class="mc-d">一条路走到黑。步骤一长，前后会自相矛盾，而且没有任何机制能发现它错了。</span></div>
+  </div>
+</div>
+
+<!-- ===== ToT ===== -->
+<div class="pane" data-p="tot">
+  <div class="tot" id="totfig">
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" id="totlines"></svg>
+  </div>
+  <div class="caption"><span class="cap-k">点上面任意一个思路，展开它的下一步</span><span id="totst">把"下一步"变成"多个下一步"：每个分支独立评估，高的留、低的剪，全死了就回溯上一层换路子。<b>试试点三个分支看看。</b></span></div>
+  <div class="mrow">
+    <div class="mcard" data-c="model"><span class="mc-t">怎么工作</span><span class="mc-d">生成 N 个候选 → 让评估器打分 → 保留 top-k → 对每个保留项继续展开 → 全部分支剪光时回溯到上一层。</span></div>
+    <div class="mcard" data-c="model"><span class="mc-t">什么时候用</span><span class="mc-d">搜索式问题：性能调优、定理证明、方案比选。答案是"试出来的"而不是"想出来的"那些。</span></div>
+    <div class="mcard" data-c="hook"><span class="mc-t">代价</span><span class="mc-d">调用次数 = 分支数 × 深度。深度 3、每层 3 个分支就是 27 次调用。而且你要有个靠得住的评估器，否则剪枝就是瞎剪。</span></div>
+  </div>
+</div>
+
+<!-- ===== Plan-and-Execute ===== -->
+<div class="pane" data-p="plan">
+  <div class="fig pe">
+    <div class="pe-box">
+      <span class="pe-h">PLANNER · 一次调用出完整计划</span>
+      <div id="planList"></div>
+    </div>
+    <div class="pe-box">
+      <span class="pe-h">EXECUTOR · 逐条执行，不回看计划</span>
+      <div id="planRun"></div>
+      <div style="margin-top:9px"><button class="btn" id="planNext">执行下一步</button> <button class="btn" id="planReset">重置</button></div>
+    </div>
+  </div>
+  <div class="caption"><span class="cap-k">先冻结，再执行</span>计划和执行被拆成两个阶段。<b>好处是计划可以给人看、可以中途停、可以换个执行器跑</b>；坏处是它在第一步之前就定死了。</div>
+  <div class="mrow">
+    <div class="mcard" data-c="model"><span class="mc-t">怎么工作</span><span class="mc-d">Planner 出一份带依赖的步骤清单 → Executor 按序跑，每步把结果记下来 → 全部跑完后 Replanner 决定收尾还是补一步。</span></div>
+    <div class="mcard" data-c="model"><span class="mc-t">什么时候用</span><span class="mc-d">步骤可预先枚举、需要人审、需要中断续跑的长任务。研究报告、批量数据处理。</span></div>
+    <div class="mcard" data-c="hook"><span class="mc-t">代价</span><span class="mc-d">真实世界会在第 3 步给你一个计划里没写过的东西。此时要么硬着头皮跑完（结果错），要么整份重规划（钱白花）。</span></div>
+  </div>
+</div>
+
+<!-- ===== Workflow DAG ===== -->
+<div class="pane" data-p="wf">
+  <div class="fig" id="wffig">
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      <line class="fl" x1="50" y1="13" x2="50" y2="27"></line>
+      <line class="fl" x1="44" y1="30" x2="22" y2="47"></line>
+      <line class="fl" x1="50" y1="30" x2="50" y2="47"></line>
+      <line class="fl" x1="56" y1="30" x2="78" y2="47"></line>
+      <line class="fl" x1="22" y1="53" x2="44" y2="71"></line>
+      <line class="fl" x1="50" y1="53" x2="50" y2="71"></line>
+      <line class="fl" x1="78" y1="53" x2="56" y2="71"></line>
+      <line class="fl" x1="50" y1="77" x2="50" y2="89"></line>
+    </svg>
+    <div class="tnode" style="left:50%;top:10%" data-k="start">start</div>
+    <div class="tnode" style="left:50%;top:30%" data-k="router" data-s="cur">router</div>
+    <div class="tnode" style="left:20%;top:50%" data-k="doc">doc_search</div>
+    <div class="tnode" style="left:50%;top:50%" data-k="code">code_search</div>
+    <div class="tnode" style="left:80%;top:50%" data-k="ticket">ticket_search</div>
+    <div class="tnode" style="left:50%;top:74%" data-k="merge">merge</div>
+    <div class="tnode" style="left:50%;top:91%" data-k="end" data-s="ok">end</div>
+  </div>
+  <div class="caption" id="wfcap"><span class="cap-k">点节点看它干什么</span>路由一个查询，三个检索<b>并发</b>跑，结果在 merge 汇合。<b>图是人写的，所以可复现、可审计、可加边</b>——代价是遇到图上没有的情况它不会自己想办法。</div>
+  <div class="mrow">
+    <div class="mcard" data-c="model"><span class="mc-t">怎么工作</span><span class="mc-d">节点是 LLM 调用、工具调用或一个判断；边是数据流。分支、并发、汇总都是图的属性，不是模型的自由发挥。</span></div>
+    <div class="mcard" data-c="model"><span class="mc-t">什么时候用</span><span class="mc-d">流程稳定、要求结果一致、要给别人看流程图当交付物。客服工单、内容审核、数据管线。</span></div>
+    <div class="mcard" data-c="hook"><span class="mc-t">代价</span><span class="mc-d">覆盖不到的情况只能靠人加边。图越大越难维护，最后往往退化成"半个 agent"。</span></div>
+  </div>
+</div>
+
+<!-- ===== ReAct ===== -->
+<div class="pane" data-p="react">
+  <div class="fig short">
+    <div class="chain">
+      <span class="cd cur">model_call</span>
+      <span class="ar"></span>
+      <span class="cd">tool_call</span>
+      <span class="ar"></span>
+      <span class="cd">messages += result</span>
+    </div>
+    <div class="loopnote">↺ 回到 model_call · 直到 finish_reason = stop</div>
+  </div>
+  <div class="caption"><span class="cap-k">没有图，只有循环</span>下一步做什么，由模型看着历史自己决定。<b>2022-10 的 ReAct 论文，今天成了绝大多数 coding agent 的骨架</b>，因为编码任务的路径本来就不可预知。完整回放见下一章。</div>
+  <div class="mrow">
+    <div class="mcard" data-c="model"><span class="mc-t">怎么工作</span><span class="mc-d">model_call 产出工具参数 → tool_call 执行 → 结果追加进 messages → 再调模型，整段历史全量重放。</span></div>
+    <div class="mcard" data-c="model"><span class="mc-t">什么时候用</span><span class="mc-d">路径不可预知、需要边做边看。Coding、运维排查、网页操作。<b>agentic RL 训练的也正是这个环。</b></span></div>
+    <div class="mcard" data-c="hook"><span class="mc-t">代价</span><span class="mc-d">上下文只增不减、参数直接进执行器、完成与否由模型自己说。三个病，第 05 章开始逐个治。</span></div>
+  </div>
+</div>
+
+<h2>五个形态放一起看</h2>
+
+<div class="tbl-wrap">
+<table>
+  <colgroup><col style="width:17%"><col style="width:21%"><col style="width:19%"><col style="width:20%"><col style="width:23%"></colgroup>
+  <thead><tr><th>形态</th><th>拓扑</th><th>调用次数</th><th>可预见性</th><th>典型场景</th></tr></thead>
+  <tbody>
+    <tr><td><b>CoT</b></td><td>直线</td><td>1 ~ n 串行</td><td>高</td><td>推理、格式转换</td></tr>
+    <tr><td><b>ToT</b></td><td>树，可回溯</td><td>分支 × 深度</td><td>中</td><td>调优、方案比选</td></tr>
+    <tr><td><b>Plan-and-Execute</b></td><td>两段式</td><td>1 + n</td><td>高（计划冻结）</td><td>长任务、需人审</td></tr>
+    <tr><td><b>工作流 DAG</b></td><td>图，人写死</td><td>节点数</td><td>最高</td><td>稳定流程、要审计</td></tr>
+    <tr><td><b>ReAct</b></td><td>环</td><td>不定，受上限约束</td><td>最低</td><td>Coding、开放任务</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>注意这张表里没有"最好"的一列。<b>可预见性和能力是反向的</b>：图越死，你越能保证它不闯祸，也越不能指望它解决图外的问题。真实系统常常混着用——外层是 DAG（保证流程），每个节点里塞一个 ReAct 环（处理节点内的不确定性）。</p>
+
+__PAGER__
+
+<script>
+(function () {
+  /* ---- 切换 ---- */
+  bindSeg('#seg .seg-btn', function (k) {
+    $$('.pane').forEach(function (p) { p.classList.toggle('on', p.dataset.p === k); });
+  });
+
+  /* ---- ToT ---- */
+  const TOT_L1 = [
+    { x: 17, label: '加索引', child: { y: 80, label: '单列索引 · 选择性不足', s: 'bad', t: '8.6s' } },
+    { x: 50, label: '改执行计划', child: { y: 80, label: '拆子查询 + 覆盖索引', s: 'ok', t: '1.2s' } },
+    { x: 83, label: '加缓存', child: { y: 80, label: '缓存命中率 12%', s: 'bad', t: '7.9s' } }
+  ];
+  const totOpen = [false, false, false];
+  const fig = $('#totfig');
+
+  function drawTot() {
+    let svg = '';
+    let html = '<div class="tnode" style="left:50%;top:10%" data-s="cur">慢查询 8.0s</div>';
+    const opened = totOpen.filter(Boolean).length;
+    const okCount = TOT_L1.filter(function (b, i) { return totOpen[i] && b.child.s === 'ok'; }).length;
+
+    TOT_L1.forEach(function (b, i) {
+      const s = !totOpen[i] ? '' : (b.child.s === 'ok' ? 'ok' : 'bad');
+      svg += '<line class="fl" x1="50" y1="14" x2="' + b.x + '" y2="46"></line>';
+      html += '<div class="tnode" style="left:' + b.x + '%;top:44%" data-k="t' + i + '"' +
+        (s ? ' data-s="' + s + '"' : '') + '>' + b.label + '</div>';
+      if (totOpen[i]) {
+        svg += '<line class="fl' + (b.child.s === 'ok' ? ' on' : '') + '" x1="' + b.x + '" y1="48" x2="' + b.x + '" y2="76"></line>';
+        html += '<div class="tnode" style="left:' + b.x + '%;top:80%" data-s="' + b.child.s + '">' + b.child.label + ' ' + b.child.t + '</div>';
+      }
+    });
+
+    fig.innerHTML = '<svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">' + svg + '</svg>' + html;
+    bindTot();
+
+    const st = $('#totst');
+    if (opened === 0) {
+      st.innerHTML = '把"下一步"变成"多个下一步"：每个分支独立评估，高的留、低的剪，全死了就回溯上一层换路子。<b>点上面任意一个思路展开它。</b>';
+    } else if (okCount === 0) {
+      st.innerHTML = '已展开 ' + opened + ' 条，全部剪枝。<b>此时回溯到上一层，换一种分解方式</b>——这就是 ToT 和 CoT 的分水岭：它允许"想错了"这件事发生。';
+    } else {
+      st.innerHTML = '已展开 ' + opened + ' 条，评估后保留 ' + okCount + ' 条（' +
+        (okCount ? '1.2s 达标' : '') + '）、剪枝 ' + (opened - okCount) + ' 条。<b>只对保留下来的分支继续加深，其余不再花 token。</b>';
+    }
+  }
+
+  function bindTot() {
+    $$('[data-k^="t"]', fig).forEach(function (el) {
+      el.addEventListener('click', function () {
+        const i = parseInt(el.dataset.k.slice(1), 10);
+        totOpen[i] = !totOpen[i];
+        drawTot();
+      });
+    });
+  }
+  drawTot();
+
+  /* ---- Plan-and-Execute ---- */
+  const PLAN = [
+    ['p1', '列出近 7 天全部告警，去重'],
+    ['p2', '按服务聚簇，找出重复率最高的 3 个'],
+    ['p3', '对每个簇拉一次日志上下文'],
+    ['p4', '产出归因结论 + 建议工单']
+  ];
+  let pi = 0;
+  function drawPlan() {
+    $('#planList').innerHTML = PLAN.map(function (p, i) {
+      return '<div class="pe-row" data-s=""><span class="st">' + (i + 1) + '</span><span>' + p[1] + '</span><span class="st">' + (i === pi ? 'RUN' : (i < pi ? 'OK' : 'WAIT')) + '</span></div>';
+    }).join('');
+    $('#planRun').innerHTML = PLAN.map(function (p, i) {
+      const s = i < pi - 1 ? 'ok' : (i === pi - 1 ? 'bad' : '');
+      const txt = i < pi - 1 ? 'DONE' : (i === pi - 1 ? 'FAIL' : '—');
+      return '<div class="pe-row" data-s="' + s + '"><span class="st">' + (i + 1) + '</span><span>' + p[1] + '</span><span class="st">' + txt + '</span></div>';
+    }).join('');
+  }
+  function planStep() {
+    if (pi >= PLAN.length) return;
+    pi += 1;
+    drawPlan();
+    if (pi === 3) {
+      $('#planRun').innerHTML += '<div style="margin-top:8px;font-size:11px;color:#c9a06b;line-height:1.55">第 3 步失败：日志上下文里没有 trace id。<b>计划里没写这一步会失败</b>，执行器只会记下来继续跑第 4 步——产出一份建立在缺失数据上的结论。</div>';
+    }
+  }
+  $('#planNext').addEventListener('click', planStep);
+  $('#planReset').addEventListener('click', function () { pi = 0; drawPlan(); });
+  drawPlan();
+
+  /* ---- Workflow ---- */
+  const WF = {
+    start: '入口。校验参数、装配初始 state，然后交给 router。',
+    router: '一次轻量模型调用：判断这个问题该查文档、查代码还是查工单。三个分支<b>并发</b>发出，不排队。',
+    doc: '并发分支 1。向量检索文档库，返回 top-5 段落。',
+    code: '并发分支 2。符号检索代码仓，返回引用链。',
+    ticket: '并发分支 3。检索历史工单，返回相似案例。',
+    merge: '汇合点：等三个分支全部返回，按权重拼接、去重、截断，再交给下一个节点。'
+      + '<b>并发省时间，merge 是代价</b>——它必须处理"某个分支超时了怎么办"。',
+    end: '输出节点。这里是唯一允许失败重试的地方（模板渲染、格式校验）。'
+  };
+  $$('[data-k]', $('#wffig')).forEach(function (el) {
+    el.addEventListener('click', function () {
+      $$('[data-k]', $('#wffig')).forEach(function (o) { o.removeAttribute('data-s'); });
+      el.setAttribute('data-s', 'cur');
+      $('#wfcap').innerHTML = '<span class="cap-k">' + el.dataset.k + '</span>' + WF[el.dataset.k];
+    });
+  });
+})();
+</script>

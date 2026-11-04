@@ -1,0 +1,247 @@
+<header class="ch-head">
+  <span class="ch-no">04 / LOOP</span>
+  <h1>ReAct 循环</h1>
+  <p class="ch-lede">把模型和工具装进一个 <code>while</code> 循环里。每一步都把<b>全部历史原样塞回上下文</b>，模型据此产出下一组工具参数。今天绝大多数 coding agent，骨架就是这个环。</p>
+</header>
+
+<div class="stage">
+
+  <div class="flow-cell">
+    <div class="flow" id="flow">
+      <div class="loopband"><span>while (!done)</span></div>
+    </div>
+    <div class="legend">
+      <span><i style="color:#5b93c9"></i>model_call</span>
+      <span><i style="color:#4fb0bd"></i>tool_call</span>
+      <span><i style="color:#6aab77"></i>agent_end</span>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="col-h"><span>checkpoint</span><span id="cp-live"></span></div>
+    <div class="col-body" id="state"></div>
+  </div>
+
+  <div class="col">
+    <div class="col-h"><span>messages 记录</span></div>
+    <div class="col-body log-body" id="log"></div>
+  </div>
+
+</div>
+
+<div class="bar">
+  <button class="btn" data-v="primary" id="next">下一步</button>
+  <button class="btn" id="prev" disabled>上一步</button>
+  <button class="btn" data-v="ghost" id="reset">重置</button>
+  <button class="btn" data-v="ghost" id="auto">自动</button>
+  <span class="step-no" id="total"></span>
+</div>
+
+<div class="caption" id="cap" style="margin-top:8px">
+  <span class="cap-k">READY</span>
+  这是一个虚构但完整的任务：让 agent 检查 <code>/repo</code> 的 Python 依赖，找出带高危漏洞的包，给出补丁。它手上只有三个工具。点「下一步」，看它怎么用五轮推理走完。
+</div>
+
+<div class="note" data-t="correction">
+  <div class="bar"></div>
+  <div class="body"><b>关于数据</b>：案例是教学构造，token 数是示意值，但每轮上下文的增长关系与真实调用一致；工具返回内容为简化后的真实 CVE 记录。</div>
+</div>
+
+<h2>为什么每一次都要"完全重放"</h2>
+
+<p>模型不是有状态的进程。<code>model_call</code> 背后是一次无状态的 HTTP 请求：你把一个 <code>messages</code> 数组发过去，它吐出下一段 token，然后忘掉一切。所谓"agent 记住了刚才做过什么"，在实现层面只有一件事——<b>把历史拼进 prompt</b>。</p>
+
+<p>所以每一轮实际发出去的东西长这样：</p>
+
+<pre><code>[
+  { "role": "system",    "content": "你是仓库维护 agent…" },
+  { "role": "user",      "content": "检查 /repo 的 Python 依赖…" },
+  { "role": "assistant", "content": null, "tool_calls": [
+      { "id": "c1", "function": { "name": "list_dir",
+        "arguments": "{\"path\":\"/repo\"}" } } ] },
+  { "role": "tool",      "tool_call_id": "c1", "content": "requirements.txt\napp.py\nREADME.md" },
+  { "role": "assistant", "content": null, "tool_calls": [
+      { "id": "c2", "function": { "name": "read_file",
+        "arguments": "{\"path\":\"/repo/requirements.txt\"}" } } ] },
+  { "role": "tool",      "tool_call_id": "c2", "content": "django==3.2.0\nrequests==2.19.0\n…" }
+]</code></pre>
+
+<p>注意三件事，它们决定了后面所有章节：</p>
+
+<ul>
+  <li><b>数组只增不减。</b>第 5 轮打的是 10 条消息，不是"当前需要的那两条"。这是上下文单调膨胀的根源。</li>
+  <li><b><code>tool_call_id</b> 必须配对。</b>每一条 <code>tool</code> 消息都要指回某个 <code>assistant.tool_calls</code> 里的 id。配对断了，请求直接 400。</li>
+  <li><b>模型只产出参数，从不执行。</b>真正跑 <code>list_dir</code> 的是你写的 executor。这一层分离，才是"可以给模型装手"的前提。</li>
+</ul>
+
+<h2>循环的三种退出条件</h2>
+
+<p>一个能跑的循环，必须同时具备三个出口。缺任何一个，就是烧钱或者卡死：</p>
+
+<div class="tbl-wrap">
+<table>
+  <colgroup><col style="width:22%"><col style="width:36%"><col style="width:42%"></colgroup>
+  <thead><tr><th>出口</th><th>判定方式</th><th>没有它会怎样</th></tr></thead>
+  <tbody>
+    <tr><td><b>模型自觉完成</b></td><td><code>finish_reason = "stop"</code>，且这次响应里没有 <code>tool_calls</code></td><td>——</td></tr>
+    <tr><td><b>回合上限</b></td><td><code>turn &gt;= max_turns</code>（常见 20–50）</td><td>模型反复调用同一个工具，永不收敛</td></tr>
+    <tr><td><b>预算上限</b></td><td>累计 token 或墙钟时间超阈值</td><td>一次跑飞的任务吃掉整月额度</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>第 1 个出口最不可靠：模型完全可以在没查完的情况下给出一个像样的结论。这就是第 09 章 evaluator 中间件要解决的问题——不信任模型的自述，另派一个 judge 对着原始目标验收。</p>
+
+<h2>这个循环有三个病灶</h2>
+
+<p>环一旦能转起来，问题就从"能不能跑"变成"跑得贵不贵、稳不稳、对不对"。三个病灶分别对应后面的三组中间件：</p>
+
+<p><a href="06-记忆中间件.html"><b>① 上下文只增不减</b></a> —— 历史全集重放，第 30 轮时 prompt 里躺着一堆早已无用的目录列表。→ 上下文压缩、工具输出卸载。</p>
+
+<p><a href="08-人工审批中间件.html"><b>② 参数直接进执行器</b></a> —— 模型生成 <code>rm -rf</code>，框架照单执行。→ before_tool 挂起，等人点头。</p>
+
+<p><a href="09-控制流中间件.html"><b>③ 结束是模型自己说的</b></a> —— <code>finish_reason=stop</code> 只代表"它不说话了"，不代表"活干完了"。→ after_agent 加一道验收，不过就跳回去继续。</p>
+
+<p>这三个问题都不是靠改 prompt 能解决的，只能靠在循环的节点上<b>插入可复用的拦截层</b>。那就是第 05 章的主题。</p>
+
+__PAGER__
+
+<script>
+(function () {
+  const flow = new AgentFlow($('#flow'), {
+    nodes: [
+      { id: 'start', label: 'agent_start', x: 50, y: 10, k: 'io' },
+      { id: 'model', label: 'model_call',  x: 29, y: 41, k: 'model' },
+      { id: 'tool',  label: 'tool_call',   x: 71, y: 41, k: 'tool' },
+      { id: 'end',   label: 'agent_end',   x: 50, y: 86, k: 'done' }
+    ],
+    edges: [
+      { id: 'e_in',  d: 'M50 10 L29 35' },
+      { id: 'e_mt',  d: 'M37 33 L63 33' },
+      { id: 'e_tm',  d: 'M63 49 L37 49' },
+      { id: 'e_out', d: 'M29 45 L50 83' }
+    ]
+  });
+
+  const sp = new StatePanel($('#state'));
+  const log = new LogPanel($('#log'));
+  const cap = $('#cap');
+
+  const INTRO = cap.innerHTML;
+
+  const S = (turn, msgs, tok, calls, fin, last) => ({
+    turn, messages: msgs, context_tokens: tok, tool_calls: calls, finish_reason: fin, last_tool: last
+  });
+
+  const STEPS = [
+    {
+      node: 'start', edges: [],
+      meta: 'turn 0 · 初始化',
+      state: S(0, '2 条', '—', 0, 'null', '—'),
+      msgs: [
+        { r: 'system', h: '你是仓库维护 agent。可用工具：list_dir / read_file / search_cve。不要臆测文件内容，先读。' },
+        { r: 'user', h: '检查 /repo 的 Python 依赖，找出带高危漏洞的包，给出可直接替换的版本约束。' }
+      ],
+      cap: '<span class="cap-k">agent_start</span>把 system prompt、用户目标、工具签名打包成初始 checkpoint。注意此时 <code>messages</code> 里只有两条——模型对 <code>/repo</code> 一无所知。'
+    },
+    {
+      node: 'model', edges: ['e_in'],
+      meta: 'turn 1 · model_call',
+      state: S(1, '2 条', '1,180', 1, 'tool_calls', 'list_dir'),
+      msgs: [{ r: 'assistant', h: '我需要先确认目录里有什么，不能猜。\n<span class="j">list_dir({"path": "/repo"})</span>' }],
+      cap: '<span class="cap-k">model_call · 第 1 轮</span>输入 1,180 tokens。模型没有任何文件系统视角，唯一合理的动作是探路。它输出一个 <code>tool_call</code>，参数是 JSON 字符串——不是代码，不是自然语言指令。'
+    },
+    {
+      node: 'tool', edges: ['e_mt'],
+      meta: 'turn 1 · tool_call',
+      state: S(1, '3 条', '1,236', 1, 'tool_calls', 'list_dir'),
+      msgs: [{ r: 'tool', h: 'requirements.txt\napp.py\nREADME.md\n<span class="ok">exit 0 · 12ms</span>' }],
+      cap: '<span class="cap-k">tool_call</span>执行器按 <code>name</code> 路由到真实函数，拿到结果，包成一条 <code>role: "tool"</code> 的消息，<b>原样追加</b>到 messages。<code>tool_call_id</code> 指回上一轮那个 <code>c1</code>。'
+    },
+    {
+      node: 'model', edges: ['e_tm'],
+      meta: 'turn 2 · model_call',
+      state: S(2, '3 条', '1,236', 2, 'tool_calls', 'read_file'),
+      msgs: [{ r: 'assistant', h: '有 requirements.txt。直接读。\n<span class="j">read_file({"path": "/repo/requirements.txt"})</span>' }],
+      cap: '<span class="cap-k">model_call · 第 2 轮</span>关键在这里：这次请求带的是 <b>3 条消息的完整历史</b>，包括上一轮的 assistant tool_call 和 tool 结果。模型"记得"目录内容，是因为目录内容就在 prompt 里。'
+    },
+    {
+      node: 'tool', edges: ['e_mt'],
+      meta: 'turn 2 · tool_call',
+      state: S(2, '4 条', '1,402', 2, 'tool_calls', 'read_file'),
+      msgs: [{ r: 'tool', h: 'django==3.2.0\nrequests==2.19.0\npyyaml==5.3.1\ncryptography==3.3.2\n<span class="ok">exit 0 · 8ms</span>' }],
+      cap: '<span class="cap-k">tool_call</span>四个依赖，版本全部钉死。现在上下文里同时躺着目录列表和依赖清单——目录列表已经没用了，但它不会被删掉。'
+    },
+    {
+      node: 'model', edges: ['e_tm'],
+      meta: 'turn 3 · model_call',
+      state: S(3, '4 条', '1,402', 3, 'tool_calls', 'search_cve'),
+      msgs: [{ r: 'assistant', h: '四个包，逐个查漏洞。先查 django 3.2.0。\n<span class="j">search_cve({"pkg": "django", "version": "3.2.0"})</span>' }],
+      cap: '<span class="cap-k">model_call · 第 3 轮</span>模型开始把任务拆成串行子查询。这是一次只查一个——它还没有"并行"的意识，除非工具描述里允许，或者训练时见过。'
+    },
+    {
+      node: 'tool', edges: ['e_mt'],
+      meta: 'turn 3 · tool_call',
+      state: S(3, '5 条', '1,486', 3, 'tool_calls', 'search_cve'),
+      msgs: [{ r: 'tool', h: 'CVE-2021-45115 · severity: <span class="warn">HIGH</span>\nXSS in Django 3.2.x\nfixed in: &gt;= 3.2.25\n<span class="ok">exit 0 · 210ms</span>' }],
+      cap: '<span class="cap-k">tool_call</span>命中一条 HIGH。这条记录进了上下文，后面模型给结论时必须引用它——否则结论就是编的。'
+    },
+    {
+      node: 'model', edges: ['e_tm'],
+      meta: 'turn 4 · model_call',
+      state: S(4, '5 条', '1,486', 6, 'tool_calls', 'search_cve ×3'),
+      msgs: [{ r: 'assistant', h: '剩下三个包的查询互不依赖，一次发出去。\n<span class="j">search_cve({"pkg": "requests", "version": "2.19.0"})</span>\n<span class="j">search_cve({"pkg": "pyyaml", "version": "5.3.1"})</span>\n<span class="j">search_cve({"pkg": "cryptography", "version": "3.3.2"})</span>' }],
+      cap: '<span class="cap-k">model_call · 第 4 轮</span>一次响应里给出 <b>3 个 tool_call</b>，这是并行调用。执行器可以并发跑这三条，省掉两轮往返。模型能这么做，是因为这三个查询之间没有数据依赖。'
+    },
+    {
+      node: 'tool', edges: ['e_mt'],
+      meta: 'turn 4 · tool_call ×3',
+      state: S(4, '9 条', '1,690', 6, 'tool_calls', 'search_cve ×3'),
+      msgs: [{ r: 'tool', h: 'requests 2.19.0 → CVE-2018-18074 <span class="warn">HIGH</span>（凭据泄漏，fixed in &gt;= 2.20.0）\npyyaml 5.3.1 → 无匹配\ncryptography 3.3.2 → 无匹配\n<span class="ok">3/3 exit 0</span>' }],
+      cap: '<span class="cap-k">tool_call</span>三条结果<b>按顺序各占一条消息</b>，不是合并成一条。messages 从 5 条涨到 9 条，上下文里开始出现大量已经用完即弃的中间结果。'
+    },
+    {
+      node: 'model', edges: ['e_tm'],
+      meta: 'turn 5 · model_call',
+      state: S(5, '9 条', '2,140', 6, 'stop', '—'),
+      msgs: [{ r: 'assistant', h: '两个 HIGH，两个干净。给出补丁：\n\n```\ndjango&gt;=3.2.25\nrequests&gt;=2.20.0\npyyaml==5.3.1\ncryptography==3.3.2\n```\n依据：CVE-2021-45115（Django 3.2.x XSS）、CVE-2018-18074（requests 凭据泄漏）。' }],
+      cap: '<span class="cap-k">model_call · 第 5 轮</span>这次响应里<b>没有 tool_calls</b>，<code>finish_reason = "stop"</code>。循环的自然出口触发。注意它引用了前几轮的真实 CVE——引用不是礼貌，是可验证性。'
+    },
+    {
+      node: 'end', edges: ['e_out'],
+      meta: 'turn 5 · 终止',
+      state: S(5, '10 条', '2,448', 6, 'stop', '—'),
+      msgs: [{ r: 'system', h: '<span class="ok">agent_end</span> · 交付补丁 · 耗时 3.4s · 8,944 tokens 累计（含 5 次 prompt 重放）' }],
+      cap: '<span class="cap-k">agent_end</span>循环退出。一次任务打了 5 次模型、4 次工具往返，累计输入 8,944 tokens，其中<b>真正新增的信息不到 400 tokens</b>——其余全是重放。这个比例就是成本结构的真相。'
+    }
+  ];
+
+  function apply(s) {
+    flow.highlight(s.node ? [s.node] : [], s.edges || []);
+    flow.meta(s.meta || '');
+    if (s.state) sp.render(s.state);
+    if (s.msgs) s.msgs.forEach((m) => log.push(m.r, m.h));
+    cap.innerHTML = s.cap;
+  }
+
+  function resetAll() {
+    flow.reset();
+    sp.reset();
+    log.clear();
+    cap.innerHTML = INTRO;
+  }
+
+  const player = new Player({
+    steps: STEPS,
+    apply,
+    resetAll,
+    autoMs: 1800,
+    min: 0,
+    box: {
+      next: $('#next'), prev: $('#prev'), reset: $('#reset'),
+      auto: $('#auto'), total: $('#total')
+    }
+  });
+  player.go(0);
+})();
+</script>

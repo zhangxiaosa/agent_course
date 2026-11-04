@@ -1,0 +1,145 @@
+<header class="ch-head">
+  <span class="ch-no">07 / TRACE</span>
+  <h1>可观测中间件</h1>
+  <p class="ch-lede">它挂在<b>每一个节点</b>上——这是六个中间件里唯一一个"全节点"的。因为它要回答的不是"怎么改行为"，而是"刚才到底发生了什么"。没有它，其他五个中间件出了问题时你无从判断。</p>
+</header>
+
+<h2>一次运行的时间去哪了</h2>
+
+<p>还是第 04 章那个案例：5 轮模型调用、4 轮工具往返。下面这张瀑布，是那次运行的完整 span 记录。<b>点任意一行看它在记什么。</b></p>
+
+<div class="waterfall" id="wf">
+  <div class="wf-head"><span>SPAN</span><span>0 ────────────────────────────────── 12.6s</span><span>耗时</span></div>
+  <div id="wfbody"></div>
+</div>
+
+<div class="caption" id="wfcap" style="margin-top:10px"></div>
+
+<div class="note" data-t="good">
+  <div class="bar"></div>
+  <div class="body"><b>这张图最重要的一个结论</b>：12.6 秒里有 11.2 秒在<b>等模型</b>，只有 1.4 秒在跑工具。所以"优化 agent 速度"最有效的手段几乎从来不是换更快的工具或加缓存，而是<b>减少轮次</b>——每少一轮 model_call，就省掉 2 秒左右，顺便省掉一整段重放的 token。</div>
+</div>
+
+<h2>span 的嵌套结构</h2>
+
+<p>可观测中间件不是"到处打日志"。它记的是一棵<b>有父子关系的树</b>，这样才能从"总耗时 12.6 秒"一路下钻到"第 4 轮那个 read_file 为什么花了 170 毫秒"。</p>
+
+<pre><code>agent.run                         12,560ms   ← 根 span，before_agent 开、after_agent 关
+├─ llm.turn1                       1,980ms   model=claude-sonnet  in=1,180 out=142
+├─ tool.list_dir                     230ms   /repo  exit=0  bytes=48
+├─ llm.turn2                       2,200ms   in=1,486 out=168
+├─ tool.read_file                    170ms   requirements.txt  bytes=132
+├─ tool.search_cve                   480ms   q=django  results=1
+├─ llm.turn3                       2,200ms   in=1,690 out=205
+├─ llm.turn4                       1,400ms   in=2,140 out=96
+├─ tool.fanout                       500ms   ← 父 span，三个并行子 span
+│  ├─ tool.read_file(app.py)         210ms
+│  ├─ tool.read_file(README.md)       90ms
+│  └─ tool.search_cve(requests)      500ms   ← 取最长的那条
+└─ llm.turn5                       2,600ms   in=2,448 out=312   finish=stop</code></pre>
+
+<p>注意 <code>tool.fanout</code> 这一层。<b>并行调用在瀑布上不是一条横条，是一组并排的条，父 span 的宽度取最长的那条</b>。如果只记总耗时，你会以为这三个工具是串行跑的，性能账全算错。</p>
+
+<h2>token 账本</h2>
+
+<p>同一个案例，把每次调用的进出 token 摊开：</p>
+
+<div class="tbl-wrap">
+<table>
+  <colgroup><col style="width:14%"><col style="width:18%"><col style="width:16%"><col style="width:20%"><col style="width:32%"></colgroup>
+  <thead><tr><th>轮次</th><th>输入 token</th><th>输出 token</th><th>这一轮干了什么</th><th>备注</th></tr></thead>
+  <tbody>
+    <tr><td><b>turn 1</b></td><td>1,180</td><td>142</td><td>决定先看目录</td><td>—</td></tr>
+    <tr><td><b>turn 2</b></td><td>1,486</td><td>168</td><td>读依赖 + 查 CVE</td><td>新增 2 条工具消息</td></tr>
+    <tr><td><b>turn 3</b></td><td>1,690</td><td>205</td><td>确认漏洞影响范围</td><td>—</td></tr>
+    <tr><td><b>turn 4</b></td><td>2,140</td><td>96</td><td>并行读三个文件</td><td>一次发 3 个 tool_call</td></tr>
+    <tr><td><b>turn 5</b></td><td>2,448</td><td>312</td><td>产出补丁建议</td><td><code>finish=stop</code></td></tr>
+    <tr><td><b>合计</b></td><td><b>8,944</b></td><td><b>724</b></td><td><b>9,668 token</b></td><td>—</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>然后是真正值得看的那一行：<b>最终整段对话只有 2,448 token，但账单上是 8,944</b>。同一条历史被重复计费了 3.7 倍——这就是第 04 章"每轮全量重放"的直接财务后果。</p>
+
+<p>所以可观测的价值不只是"出事好查"。它是<b>唯一能把"这个 agent 为什么贵"算清楚的工具</b>。没有账本，你只能感觉到贵；有了账本，你知道贵在第 4 轮那次并行读文件（2,140 输入只换回 96 输出，性价比最差的一轮）。</p>
+
+<h2>记什么，不记什么</h2>
+
+<div class="tbl-wrap">
+<table>
+  <colgroup><col style="width:24%"><col style="width:40%"><col style="width:36%"></colgroup>
+  <thead><tr><th>字段</th><th>为什么记</th><th>怎么记才安全</th></tr></thead>
+  <tbody>
+    <tr><td><b>完整 prompt</b></td><td>复现"它当时到底看到了什么"的唯一办法</td><td>脱敏后存；或只存 hash + 变更 diff</td></tr>
+    <tr><td><b>tool 参数</b></td><td>判断危险调用、排查参数错误</td><td>路径、密钥、token 一律打码</td></tr>
+    <tr><td><b>tool 输出大小</b></td><td>发现"上下文被撑爆"的源头</td><td>记字节数即可，不必存全文</td></tr>
+    <tr><td><b>TTFT</b></td><td>首 token 延迟直接决定体感速度</td><td>和总耗时分开记，两者不是一回事</td></tr>
+    <tr><td><b>finish_reason</b></td><td>区分"正常结束"和"被截断"</td><td>截断要单独告警，它会悄悄丢答案</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note" data-t="risk">
+  <div class="bar"></div>
+  <div class="body"><b>可观测本身是个隐私面</b>：完整 prompt 里可能含用户上传的文档、数据库字段、内部路径。trace 系统往往是整个 agent 里<b>最容易造成数据外泄</b>的一环——它把所有东西都抄了一份，还存很久。上线前先想清楚：存多久、谁能读、哪些字段必须脱敏。</div>
+</div>
+
+__PAGER__
+
+<script>
+(function () {
+  const TOTAL = 12600;
+  const ROWS = [
+    { k: 'run',   lab: 'agent.run',        s: 0,    d: 12560, c: 'root', pad: 0,
+      det: '根 span。<b>before_agent 打开，after_agent 关闭</b>。所有子 span 都挂在它下面，它的耗时等于整次运行。' },
+    { k: 'l1',    lab: 'llm.turn1',        s: 120,  d: 1980,  c: 'model', pad: 1,
+      det: '模型调用 span。记 <b>prompt 长度、返回长度、finish_reason、首 token 延迟（TTFT）</b>。TTFT 和总耗时必须分开记——用户体感的是前者，账单算的是后者。' },
+    { k: 't1',    lab: 'tool.list_dir',    s: 2150, d: 230,   c: 'tool', pad: 1,
+      det: '工具 span。记参数（脱敏后）、返回字节数、exit code。230ms 对本地目录来说是偏慢的——说明它走了一次远端调用。' },
+    { k: 'l2',    lab: 'llm.turn2',        s: 2400, d: 2200,  c: 'model', pad: 1,
+      det: '第 2 轮变慢了：输入从 1,180 涨到 1,486，工具结果刚灌进来。' },
+    { k: 't2a',   lab: 'tool.read_file',   s: 4650, d: 170,   c: 'tool', pad: 1, det: '读 requirements.txt，132 字节，快得正常。' },
+    { k: 't2b',   lab: 'tool.search_cve',  s: 4830, d: 480,   c: 'tool', pad: 1, det: '查 CVE，400ms 属于外部 API 的正常波动。' },
+    { k: 'l3',    lab: 'llm.turn3',        s: 5400, d: 2200,  c: 'model', pad: 1, det: '第 3 轮。注意它和第 2 轮耗时几乎一样——<b>模型调用的耗时主要由输入长度决定，不由任务难度决定</b>。' },
+    { k: 'l4',    lab: 'llm.turn4',        s: 7700, d: 1400,  c: 'model', pad: 1, det: '这一轮明显快：输入虽长，但输出只有 96 token（它只发了三个 tool_call，没写解释）。' },
+    { k: 't4',    lab: 'tool.fanout (×3)', s: 9200, d: 500,   c: 'tool', pad: 1,
+      det: '<b>并行调用的父 span</b>。三个子 span 的 start 几乎同时，宽度取最长的那条（search_cve 500ms）。只看父 span 的 500ms 会误以为只跑了一个工具。' },
+    { k: 'l5',    lab: 'llm.turn5',        s: 9800, d: 2600,  c: 'model', pad: 1, det: '最长的一轮。输入 2,448 是全程峰值，输出 312——<b>它这一轮在写结论，所以输出变长、输入也最贵</b>。' },
+    { k: 'end',   lab: 'agent.end',        s: 12400, d: 160,  c: 'ok', pad: 0, det: '收尾：关根 span、聚合总量、写账单。160ms 是序列化和上报的开销。' }
+  ];
+
+  const body = $('#wfbody');
+  body.innerHTML = ROWS.map(function (r) {
+    const left = (r.s / TOTAL) * 100;
+    const w = Math.max((r.d / TOTAL) * 100, 0.35);
+    let bar;
+    if (r.k === 't4') {
+      // 并行三个子 span：同一起点，三条并排
+      bar = [[0, 210], [4, 90], [8, 500]].map(function (b) {
+        return '<i class="wf-bar" data-c="tool" style="top:' + (2 + b[0]) + 'px;height:3px;left:' +
+          left + '%;width:' + ((b[1] / TOTAL) * 100).toFixed(2) + '%"></i>';
+      }).join('');
+    } else {
+      bar = '<i class="wf-bar" data-c="' + r.c + '" style="left:' + left + '%;width:' + w.toFixed(2) + '%"></i>';
+    }
+    return '<div class="wf-row" data-k="' + r.k + '">' +
+      '<span class="wf-lab" style="padding-left:' + (r.pad * 12) + 'px">' + r.lab + '</span>' +
+      '<span class="wf-track">' + bar + '</span>' +
+      '<span class="wf-ms">' + (r.d >= 1000 ? (r.d / 1000).toFixed(1) + 's' : r.d + 'ms') + '</span>' +
+      '</div>';
+  }).join('');
+
+  const cap = $('#wfcap');
+  function show(k) {
+    $$('.wf-row').forEach(function (r) { r.classList.remove('sel'); });
+    const row = $$('.wf-row').filter(function (r) { return r.dataset.k === k; })[0];
+    if (row) row.classList.add('sel');
+    const d = ROWS.filter(function (r) { return r.k === k; })[0];
+    cap.innerHTML = '<span class="cap-k">' + d.lab + '</span>' + d.det;
+  }
+  $$('.wf-row').forEach(function (r) {
+    r.addEventListener('click', function () { show(r.dataset.k); });
+  });
+  show('run');
+})();
+</script>

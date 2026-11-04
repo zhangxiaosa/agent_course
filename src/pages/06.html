@@ -1,0 +1,336 @@
+<header class="ch-head">
+  <span class="ch-no">06 / MEMORY</span>
+  <h1>记忆：压缩与卸载</h1>
+  <p class="ch-lede">第 04 章那个循环有两个绕不过去的事实：<b>历史只增不减</b>，<b>工具输出没有上限</b>。这两件事撞在一起，第三十轮的 prompt 里会躺着几万 token 的废目录列表。这一章讲两条止血带。它们其实是同一件事——<b>给 agent 做虚拟内存</b>。</p>
+</header>
+
+<h2>① 上下文压缩 · 挂在 before_model</h2>
+
+<div class="stage wide">
+
+  <div class="flow-cell">
+    <div class="col">
+      <div class="col-h"><span>before_model 命中</span><span id="cp-m1"></span></div>
+      <div class="col-body">
+        <div class="flow" id="flow1"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="col-h"><span>checkpoint</span></div>
+    <div class="col-body" id="state1"></div>
+  </div>
+
+  <div class="col">
+    <div class="col-h"><span>messages 记录</span></div>
+    <div class="col-body log-body" id="log1"></div>
+  </div>
+
+</div>
+
+<div class="bar">
+  <button class="btn" data-v="primary" id="next1">下一步</button>
+  <button class="btn" id="prev1" disabled>上一步</button>
+  <button class="btn" data-v="ghost" id="reset1">重置</button>
+  <span class="step-no" id="total1"></span>
+</div>
+
+<div class="caption" id="cap1" style="margin-top:8px">
+  <span class="cap-k">READY</span>
+  第 12 轮的 agent 已经把上下文堆到 41,200 token，而窗口预算只有 32,000。点「下一步」，看压缩在这一轮里怎么动手。
+</div>
+
+<h3>压缩不能压什么</h3>
+
+<p>这是最容易踩坑的地方。摘要不是"把历史变短"，是<b>在有限预算下保住模型做决定所需的最小信息集</b>。四条硬规则：</p>
+
+<div class="tbl-wrap">
+<table>
+  <colgroup><col style="width:26%"><col style="width:74%"></colgroup>
+  <thead><tr><th>必须保留</th><th>压了会怎样</th></tr></thead>
+  <tbody>
+    <tr><td><b>system prompt</b></td><td>里面有工具定义。压掉 = 模型不知道自己有什么工具，下一轮直接不调了。</td></tr>
+    <tr><td><b>最近 N 轮</b></td><td>当前这一步的判断依据全在这儿。压掉 = 它忘了刚才刚看到什么。</td></tr>
+    <tr><td><b>tool_call_id 配对</b></td><td>每一条 <code>tool</code> 消息都要对应一条 <code>assistant.tool_calls</code>。压断配对，请求直接 400——不是效果变差，是根本发不出去。</td></tr>
+    <tr><td><b>失败过的路径</b></td><td>「这条路试过，报错 xxx」是模型避免重复踩坑的唯一依据。压掉它，它会在第 14 轮再试一次同样的命令。</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note" data-t="risk">
+  <div class="bar"></div>
+  <div class="body"><b>摘要的隐性成本</b>：压缩本身要调一次模型。如果压缩频率太高（比如每轮都压），你付出的是"压缩调用 + 原始历史"两份成本，换来的只是更短的上下文。<b>实践中通常只在超过阈值时压一次，压到 40% 左右，给后面留出增长空间。</b></div>
+</div>
+
+<h2>② 工具输出卸载 · 挂在 after_tool</h2>
+
+<div class="stage wide">
+
+  <div class="flow-cell">
+    <div class="col">
+      <div class="col-h"><span>after_tool 命中</span><span id="cp-m2"></span></div>
+      <div class="col-body">
+        <div class="flow" id="flow2"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="col-h"><span>checkpoint</span></div>
+    <div class="col-body" id="state2"></div>
+  </div>
+
+  <div class="col">
+    <div class="col-h"><span>messages 记录</span></div>
+    <div class="col-body log-body" id="log2"></div>
+  </div>
+
+</div>
+
+<div class="bar">
+  <button class="btn" data-v="primary" id="next2">下一步</button>
+  <button class="btn" id="prev2" disabled>上一步</button>
+  <button class="btn" data-v="ghost" id="reset2">重置</button>
+  <span class="step-no" id="total2"></span>
+</div>
+
+<div class="caption" id="cap2" style="margin-top:8px">
+  <span class="cap-k">READY</span>
+  这次换一个方向：不是历史太长，是<b>单条消息太长</b>。模型读一个构建日志，工具一口气返回了 18,400 个字符。
+</div>
+
+<h3>为什么裁"末尾"而不是"开头"</h3>
+
+<p>因为工具输出的信息密度分布是不均匀的。<code>build.log</code>、<code>pytest</code>、<code>npm install</code> 这类输出，<b>结论永远在最后</b>——前面几万行是依赖树，最后十行才是 <code>ERROR / FAILED / exit code</code>。</p>
+
+<p>裁掉开头、保留末尾，模型通常不需要读回全文就能做判断。而裁掉末尾、保留开头，等于把最有用的部分扔掉，换上最没用的部分——模型会立刻再调一次工具读回，白花一次往返。</p>
+
+<pre><code>after_tool 的裁剪逻辑（示意）
+
+if (output.length &lt;= LIMIT) return output;
+
+const head = output.slice(0, 400);           // 保留开头，给上下文
+const tail = output.slice(-2000);            // 保留末尾，结论在这
+const dropped = output.length - head.length - tail.length;
+
+const note = `\n\n[已省略 ${dropped} 个字符。`
+           + `如需完整内容，请加载 result_${toolCallId}.txt]`;
+
+saveToFile(`result_${toolCallId}.txt`, output);   // 全文落盘
+return head + note + tail;</code></pre>
+
+<p>注意 <code>saveToFile</code> 这一步：<b>裁剪不是丢弃，是换页</b>。全文必须还在某个地方，否则模型一旦真的需要中间那段，就永久失去了。</p>
+
+<h2>这两件事其实是虚拟内存</h2>
+
+<p>把两个中间件放在一起看，会发现它们在做操作系统几十年前就做过的事：</p>
+
+<div class="tbl-wrap">
+<table>
+  <colgroup><col style="width:22%"><col style="width:26%"><col style="width:26%"><col style="width:26%"></colgroup>
+  <thead><tr><th>操作系统</th><th>对应到 agent</th><th>触发条件</th><th>回退手段</th></th></tr></thead>
+  <tbody>
+    <tr><td><b>缺页换出</b></td><td>上下文压缩</td><td>token 超预算</td><td>摘要里保留关键事实（不可逆，有损）</td></tr>
+    <tr><td><b>换页到磁盘</b></td><td>工具输出卸载</td><td>单条消息超阈值</td><td>按 <code>result_&lt;id&gt;.txt</code> 读回（无损）</td></tr>
+    <tr><td><b>缓存</b></td><td>长期记忆检索</td><td>新会话开始 / 相关度命中</td><td>向量召回 top-k 注入</td></tr>
+    <tr><td><b>日志归档</b></td><td>完整 trace 落盘</td><td>run 结束</td><td>按 trace_id 回放</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>差别在于：操作系统的缺页是硬件强制的，agent 的缺页是<b>你自己判断</b>的。判断错了，换来的是"模型忘了关键约束"或者"模型反复读同一个文件"——这两种症状在线上都表现为"这 agent 怎么突然变笨了"，而根因在中间件的阈值上。</p>
+
+<h2>再往前一步：完整的记忆系统长什么样</h2>
+
+<p>压缩和卸载只解决"装不下"。真实产品里还有第三个问题：<b>该记的没记住</b>。用户上周说过"我们只用 Python 3.11"，这周开新会话，agent 一无所知。这就需要一个真正的记忆层。</p>
+
+<div class="tbl-wrap">
+<table>
+  <colgroup><col style="width:18%"><col style="width:20%"><col style="width:30%"><col style="width:16%"><col style="width:16%"></colgroup>
+  <thead><tr><th>层</th><th>存在哪</th><th>存什么</th><th>怎么取回</th><th>谁负责写</th></tr></thead>
+  <tbody>
+    <tr><td><b>上下文窗口</b></td><td>内存（messages）</td><td>最近 N 轮、当前任务</td><td>直接进 prompt</td><td>循环自动追加</td></tr>
+    <tr><td><b>工作记忆</b></td><td>state / scratchpad</td><td>计划、待办、已确认的事实</td><td>每轮注入到 system 末尾</td><td>中间件读写</td></tr>
+    <tr><td><b>长期记忆</b></td><td>向量库 + 图</td><td>跨会话偏好、项目知识、失败教训</td><td>检索 top-k 注入</td><td>写入前要抽取、去重、合并</td></tr>
+    <tr><td><b>归档</b></td><td>对象存储 / 文件</td><td>原始日志、完整工具输出、trace</td><td>按 id 按需加载</td><td>卸载 / 可观测中间件</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>长期记忆真正的难点不在检索，在<b>写入</b>。写少了没用，写多了会污染：同一个偏好记了五条、三条互相矛盾、一条早就过期。所以成熟的记忆系统一定有一套后台流程：</p>
+
+<ul>
+  <li><b>抽取</b>——从对话里判断"这句话是一条值得长期记住的事实吗"，而不是把整段对话倒进向量库。</li>
+  <li><b>去重与合并</b>——新事实和已有条目语义相近时，选择更新旧条目而不是新增一条。</li>
+  <li><b>遗忘</b>——带时间衰减；被引用得少的条目降权，长期不用就归档。</li>
+  <li><b>接管</b>——冲突时以最新为准，并把旧结论标记为"已被推翻"，而不是删掉（模型需要知道"曾经以为是这样"）。</li>
+</ul>
+
+<div class="note" data-t="good">
+  <div class="bar"></div>
+  <div class="body"><b>一条经验</b>：先做<b>卸载</b>，再做<b>压缩</b>，最后才做长期记忆。前两个是确定性的、可测的（省了多少 token 一眼能看到）；长期记忆是概率性的，做早了只会得到一堆检索噪音。</div>
+</div>
+
+__PAGER__
+
+<script>
+(function () {
+  /* ================= ① 压缩 ================= */
+  const flow1 = new AgentFlow($('#flow1'), { nodes: STD_NODES, edges: STD_EDGES });
+  const sp1 = new StatePanel($('#state1'));
+  const log1 = new LogPanel($('#log1'));
+  const cap1 = $('#cap1');
+  const CP1 = $('#cp-m1');
+
+  const BASE1 = [
+    ['system', '你是仓库维护 agent。可用工具：<code>list_dir</code> / <code>read_file</code> / <code>search_cve</code>。'],
+    ['user', '检查 /repo 的 Python 依赖，找出带高危漏洞的包，给出补丁。'],
+    ['assistant', '先看目录。<code>list_dir({"path":"/repo"})</code>'],
+    ['tool', 'requirements.txt · app.py · README.md'],
+    ['assistant', '读依赖。<code>read_file({"path":"/repo/requirements.txt"})</code>'],
+    ['tool', 'django==3.2.0\nrequests==2.19.0\nflask==2.0.1'],
+    ['muted', '… 其余 18 条（turn 4–11 的 ls / read / search 往返，多为原始输出）']
+  ];
+
+  function reset1() {
+    flow1.reset(); sp1.render({}); log1.clear(); CP1.textContent = '';
+    BASE1.forEach(function (m) { log1.push(m[0], m[1]); });
+    cap1.innerHTML = '<span class="cap-k">READY</span>第 12 轮的 agent 已经把上下文堆到 41,200 token，而窗口预算只有 32,000。点「下一步」，看压缩在这一轮里怎么动手。';
+  }
+
+  const S1 = [
+    {
+      node: ['b_model'], edges: ['e_start', 'e_bm'],
+      cap: ['turn 12 · before_model', '第 12 轮开始时，历史已经堆到 <b>24 条消息 / 41,200 token</b>，预算 32,000。<b>模型还没被调用，但这一轮已经注定发不出去</b>——压缩中间件就在这里接管。'],
+      state: { turn: 12, messages: 24, context_tokens: '41,200', budget: '32,000', compact: '等待', last_error: '—' }
+    },
+    {
+      node: ['b_model'], edges: [],
+      cap: ['COMPACT · 挑要被摘要的区间', '选 turn 3–9 的 14 条消息交给小模型做摘要。这个区间的选择有讲究：<b>system 和最近 3 轮必须原样保留</b>，只能压中间那段"已经用完、但还占着位置"的历史。'],
+      state: { turn: 12, messages: '24 → 待压 14', context_tokens: '41,200', budget: '32,000', compact: 'running', last_error: '—' }
+    },
+    {
+      node: ['b_model'], edges: [],
+      cap: ['COMPACT · 写回 checkpoint', '摘要回来：<b>14 条 → 1 条，4,200 token 换掉原来的 28,000</b>。<code>messages</code> 数组被就地改写——注意右侧，那 14 条真的没了。'],
+      state: { turn: 12, messages: 11, context_tokens: '12,930', budget: '32,000', compact: 'done · -28,270', last_error: '—' },
+      rewrite: true
+    },
+    {
+      node: ['model'], edges: ['e_bm', 'e_m'],
+      cap: ['model_call', '现在才真正发请求。模型收到的是 12,930 token 的压缩版，<b>省下的 28,270 token 就是这一轮实打实的钱</b>。'],
+      state: { turn: 12, messages: 11, context_tokens: '12,930', budget: '32,000', compact: 'done · -28,270', last_error: '—' }
+    },
+    {
+      node: ['a_model'], edges: ['e_m'],
+      cap: ['after_model', '模型正常回答，<b>它并没有"发现"历史被压缩过</b>——摘要里保住了它需要的三个事实：仓库路径、已确认的两个依赖、一次失败的搜索。压缩的理想状态就是：被压掉的东西，模型本来也不再需要了。'],
+      state: { turn: 13, messages: 13, context_tokens: '13,860', budget: '32,000', compact: 'done · -28,270', last_error: '—' },
+      msg: ['assistant', 'requirements.txt 里 <code>django==3.2.0</code> 对应 CVE-2021-45115（XSS），<code>requests==2.19.0</code> 对应 CVE-2018-18074（凭据泄漏）。建议升到 3.2.25 与 2.31.0。']
+    }
+  ];
+
+  const COMPRESSED = [
+    ['system', '你是仓库维护 agent。可用工具：<code>list_dir</code> / <code>read_file</code> / <code>search_cve</code>。'],
+    ['summary', '<b>[turn 3–9 的摘要 · 4,200 tok]</b><br>仓库 /repo 含 requirements.txt / app.py / README.md。依赖 3 个：django==3.2.0、requests==2.19.0、flask==2.0.1。已对 django 执行过 search_cve，返回 1 条高危。曾尝试读 app.py 全文（12,000 行）——<b>已判断为不必要，放弃</b>。'],
+    ['assistant', '读依赖。<code>read_file({"path":"/repo/requirements.txt"})</code>'],
+    ['tool', 'django==3.2.0\nrequests==2.19.0\nflask==2.0.1'],
+    ['muted', '… 最近 3 轮原样保留']
+  ];
+
+  new Player({
+    steps: S1, min: 0, box: { next: $('#next1'), prev: $('#prev1'), reset: $('#reset1'), total: $('#total1') },
+    resetAll: reset1,
+    apply: function (s) {
+      flow1.highlight(s.node, s.edges);
+      sp1.render(s.state);
+      cap1.innerHTML = '<span class="cap-k">' + s.cap[0] + '</span>' + s.cap[1];
+      if (s.rewrite) { log1.clear(); COMPRESSED.forEach(function (m) { log1.push(m[0], m[1]); }); }
+      else if (s.msg) log1.push(s.msg[0], s.msg[1]);
+      CP1.textContent = s.node[0] === 'b_model' ? 'compact' : '';
+    }
+  });
+  reset1();
+
+  /* ================= ② 卸载 ================= */
+  const flow2 = new AgentFlow($('#flow2'), { nodes: STD_NODES, edges: STD_EDGES });
+  const sp2 = new StatePanel($('#state2'));
+  const log2 = new LogPanel($('#log2'));
+  const cap2 = $('#cap2');
+
+  const BASE2 = [
+    ['system', '你是 CI 排障 agent。工具：<code>read_file</code> / <code>read_result</code> / <code>run_cmd</code>。'],
+    ['user', '这次构建为什么失败？给出根因。']
+  ];
+
+  const BIG = 'Collecting django==3.2.0\nCollecting requests==2.19.0\n...\n' +
+    '  Downloading Django-3.2.0-py3-none-any.whl (7.8 MB)\n' +
+    '  Building wheel for psycopg2 (setup.py): finished with status "error"\n' +
+    '  ERROR: Failed building wheel for psycopg2\n' +
+    '  error: command \'gcc\' failed: No such file or directory\n' +
+    'BUILD FAILED (exit code 1)';
+
+  function reset2() {
+    flow2.reset(); sp2.render({}); log2.clear();
+    BASE2.forEach(function (m) { log2.push(m[0], m[1]); });
+    cap2.innerHTML = '<span class="cap-k">READY</span>这次换一个方向：不是历史太长，是<b>单条消息太长</b>。模型读一个构建日志，工具一口气返回了 18,400 个字符。';
+  }
+
+  const S2 = [
+    {
+      node: ['model'], edges: ['e_start', 'e_bm', 'e_m'],
+      cap: ['model_call · 决定读日志', '模型决定直接读完整构建日志——这是最自然的一步，也是后面那个坑的来源。'],
+      state: { turn: 1, messages: 2, context_tokens: '980', last_tool: '—', output_chars: '—', offload: '—' },
+      msg: ['assistant', '读完整日志。<code>read_file({"path":"build.log"})</code>']
+    },
+    {
+      node: ['tool'], edges: ['e_am_bt', 'e_bt'],
+      cap: ['tool_call · 返回 18,400 字符', '工具老实返回全文。<b>这 18,400 个字符马上就要全部进上下文</b>，而其中 17,000 个字符是依赖下载的进度行。'],
+      state: { turn: 1, messages: 3, context_tokens: '19,380', last_tool: 'read_file', output_chars: '18,400', offload: '—' },
+      big: true
+    },
+    {
+      node: ['a_tool'], edges: ['e_t'],
+      cap: ['after_tool · 命中阈值', '阈值 4,000，实际 18,400——超了 4.6 倍。卸载中间件在这里接管：<b>它不是把输出扔掉，是把它换页到磁盘</b>。'],
+      state: { turn: 1, messages: 3, context_tokens: '19,380', last_tool: 'read_file', output_chars: '18,400', offload: 'running · 阈值 4,000' }
+    },
+    {
+      node: ['a_tool'], edges: [],
+      cap: ['after_tool · 裁剪 + 落盘', '保留开头 400 字符（给上下文）、末尾 2,000 字符（结论在这儿），中间 16,000 字符写成 <code>result_c7.txt</code>，并插入一句"如需完整内容请加载"。<b>上下文从 19,380 掉到 3,400。</b>'],
+      state: { turn: 1, messages: 3, context_tokens: '3,382', last_tool: 'read_file', output_chars: '18,400 → 2,400', offload: 'done · -16,000' },
+      truncate: true
+    },
+    {
+      node: ['model'], edges: ['e_loop', 'e_bm', 'e_m'],
+      cap: ['model_call · 读回', '模型看到末尾那几行已经够判断根因了。但为了给出精确建议，它主动读回中间那段的尾部 20 行——<b>按 id 按需加载，而且只加载它要的那一段</b>。'],
+      state: { turn: 2, messages: 4, context_tokens: '3,382', last_tool: 'read_file', output_chars: '18,400 → 2,400', offload: 'done · -16,000' },
+      msg: ['assistant', '要看 wheel 构建的详细报错。<code>read_result({"id":"c7","tail":20})</code>']
+    },
+    {
+      node: ['tool'], edges: ['e_loop', 'e_bm', 'e_m', 'e_am_bt', 'e_bt'],
+      cap: ['完成', '这一次只回传 20 行、约 600 字符。整个过程中上下文峰值从 19,380 降到 3,382，<b>而且模型一次都没有"看不见"它需要的那段</b>。'],
+      state: { turn: 2, messages: 6, context_tokens: '4,010', last_tool: 'read_result', output_chars: '620', offload: 'done · -16,000' },
+      msg: ['tool', 'psycopg2 的 wheel 需要本地编译，但容器里没有 gcc。<br><b>根因</b>：基础镜像缺 build-essential。修法：换成 <code>python:3.11-slim</code> 并在 apt 层装 gcc，或直接用 <code>psycopg2-binary</code>。']
+    }
+  ];
+
+  new Player({
+    steps: S2, min: 0, box: { next: $('#next2'), prev: $('#prev2'), reset: $('#reset2'), total: $('#total2') },
+    resetAll: reset2,
+    apply: function (s) {
+      flow2.highlight(s.node, s.edges);
+      sp2.render(s.state);
+      cap2.innerHTML = '<span class="cap-k">' + s.cap[0] + '</span>' + s.cap[1];
+      if (s.big) log2.push('tool', '<pre style="margin:4px 0 0;max-height:150px;overflow:hidden;font-size:10.5px">' + BIG + '</pre>');
+      else if (s.truncate) {
+        log2.clear();
+        BASE2.forEach(function (m) { log2.push(m[0], m[1]); });
+        log2.push('assistant', '读完整日志。<code>read_file({"path":"build.log"})</code>');
+        log2.push('tool', '<pre style="margin:4px 0 0;max-height:60px;overflow:hidden;font-size:10.5px">Collecting django==3.2.0\nCollecting requests==2.19.0\n...</pre>' +
+          '<div style="font-size:10.5px;color:#c9a06b;border-left:2px solid #6b5433;padding-left:6px;margin-top:5px">已省略 16,000 个字符。如需完整内容，请加载 <code>result_c7.txt</code></div>' +
+          '<pre style="margin:5px 0 0;max-height:46px;overflow:hidden;font-size:10.5px">BUILD FAILED (exit code 1)</pre>');
+      } else if (s.msg) log2.push(s.msg[0], s.msg[1]);
+    }
+  });
+  reset2();
+})();
+</script>

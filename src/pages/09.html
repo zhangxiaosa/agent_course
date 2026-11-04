@@ -1,0 +1,230 @@
+<header class="ch-head">
+  <span class="ch-no">09 / CONTROL</span>
+  <h1>控制流中间件</h1>
+  <p class="ch-lede">前五个中间件改的是数据、权限、记录。这一类改的是<b>图本身</b>：它不走"下一步"，而是<b>往回跳</b>。一个 agent 能不能自我纠正，就取决于有没有这条回边。</p>
+</header>
+
+<h2>① 重试：在 after_model 往回跳</h2>
+
+<p>模型调用失败是常态——429 限流、超时、上游抖动。<b>失败只能在这一轮调用返回之后才知道，所以挂点只能是 after_model</b>，然后 <code>jump to before_model</code>。</p>
+
+<div class="duo-stage">
+  <div class="col">
+    <div class="col-h"><span>after_model · retry</span><span id="rf1"></span></div>
+    <div class="col-body">
+      <div class="flow sm" id="flow1"></div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="col-h"><span>尝试记录</span></div>
+    <div class="col-body log-body" id="log1"></div>
+  </div>
+</div>
+
+<div class="bar">
+  <button class="btn" data-v="primary" id="next1">下一步</button>
+  <button class="btn" id="prev1" disabled>上一步</button>
+  <button class="btn" data-v="ghost" id="reset1">重置</button>
+  <span class="step-no" id="total1"></span>
+</div>
+
+<div class="caption" id="cap1" style="margin-top:8px"></div>
+
+<p>别小看"等一等"这件事。<b>失败的所有请求在同一毫秒重试，就是一次自我 DDoS</b>——上游刚缓过来又被压垮，你也就永远重试不上。所以退避必须是<b>指数 + 抖动</b>：</p>
+
+<div class="bo" aria-hidden="true">
+  <div class="bo-item"><div class="bo-bar" style="height:22px"></div><span class="bo-lab">1s</span></div>
+  <div class="bo-item"><div class="bo-bar" style="height:44px"></div><span class="bo-lab">2s</span></div>
+  <div class="bo-item"><div class="bo-bar" style="height:74px"></div><span class="bo-lab">4s</span></div>
+  <div class="bo-item"><div class="bo-bar" style="height:104px"></div><span class="bo-lab">8s</span></div>
+  <div class="bo-item" style="margin-left:8px"><span class="bo-lab" style="color:var(--text-2)">＋ jitter 0–20%</span></div>
+</div>
+
+<p><code>delay = min(base × 2^attempt, cap) × (1 + random × 0.2)</code>。加那点随机量的目的不是"更快"，是<b>把同时到达的请求错开</b>。没有 jitter 的话，一万个客户端还是会在第 4 秒一起撞上来。</p>
+
+<div class="note" data-t="risk">
+  <div class="bar"></div>
+  <div class="body"><b>重试的前提是幂等</b>。模型调用没有副作用，重试一百次也安全；<b>工具调用不是</b>——<code>create_order</code> 超时后重试，可能下了两单。所以重试策略要按节点分开：模型节点可以激进，工具节点必须先查幂等键，或者干脆不重试、转人工（回到第 08 章）。</div>
+</div>
+
+<h2>② 评审：在 after_agent 把结果打回去</h2>
+
+<p>这是最容易被忽略、但作用最大的一条。模型说"做完了"，循环就退出了——<b>但模型判断自己完成的标准，和任务真正完成的标准，往往不是一回事</b>。</p>
+
+<p>还是第 04 章那个案例：目标是"找出<b>所有</b>带高危漏洞的包"，模型只修了 Django 和 requests 就宣布结束。<code>after_agent</code> 上的 judge 拿着<b>最初那句 goal</b> 去核对，发现漏了 pyyaml。</p>
+
+<div class="duo-stage">
+  <div class="col">
+    <div class="col-h"><span>after_agent · evaluator</span><span id="rf2"></span></div>
+    <div class="col-body">
+      <div class="flow sm" id="flow2"></div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="col-h"><span>messages 记录</span></div>
+    <div class="col-body log-body" id="log2"></div>
+  </div>
+</div>
+
+<div class="bar">
+  <button class="btn" data-v="primary" id="next2">下一步</button>
+  <button class="btn" id="prev2" disabled>上一步</button>
+  <button class="btn" data-v="ghost" id="reset2">重置</button>
+  <span class="step-no" id="total2"></span>
+</div>
+
+<div class="caption" id="cap2" style="margin-top:8px"></div>
+
+<p>关键在 <b>feedback 怎么插</b>。它不是一条新的 user 消息——那会看起来像用户改了需求。实际实现里通常是一条 <code>role:"judge"</code> 或 <code>role:"system"</code> 的批评，明确写出<b>缺了什么、依据是什么</b>：</p>
+
+<pre><code>{ "role": "judge",
+  "content": "goal 要求覆盖所有高危包。当前结果只处理了 django 与 requests，
+              pyyaml 的 CVE-2020-14343 未修复。请继续。" }</code></pre>
+
+<p>模型下一轮就会去读那个包。注意它<b>不会重头再来</b>——messages 里已有的上下文全在，它接着干。</p>
+
+<div class="tbl-wrap">
+<table>
+  <colgroup><col style="width:22%"><col style="width:34%"><col style="width:44%"></colgroup>
+  <thead><tr><th>judge 用什么判</th><th>适合</th><th>代价</th></tr></thead>
+  <tbody>
+    <tr><td><b>硬规则</b></td><td>有明确验收条件的：测试通过、文件存在、格式合法</td><td>最便宜最可靠，但只能查"能不能"，查不了"好不好"</td></tr>
+    <tr><td><b>另一个模型 + rubric</b></td><td>开放式任务：报告、代码质量、需求覆盖度</td><td>多一次调用；judge 也会看走眼</td></tr>
+    <tr><td><b>人工</b></td><td>高风险交付</td><td>回到第 08 章，慢但兜得住</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note" data-t="risk">
+  <div class="bar"></div>
+  <div class="body"><b>评审必须设上限</b>。judge 苛刻一点，模型改一点，judge 还不满意——这个环可以转到天荒地老，token 一路烧。<b><code>max_evals</code> 是硬约束</b>，到顶就交给人，或者带着"未完全达标"的标记退出。任何往回跳的边都要有次数上限，这是控制流中间件的通用规则。</div>
+</div>
+
+<h2>到这里，六个中间件可以收口了</h2>
+
+<p>回头看它们的共同点：<b>每一个都是 <code>(hook, handler)</code>——挂在某个节点上，看当时的上下文，决定改数据还是改流向。</b></p>
+
+<div class="tbl-wrap">
+<table>
+  <colgroup><col style="width:20%"><col style="width:16%"><col style="width:32%"><col style="width:32%"></colgroup>
+  <thead><tr><th>中间件</th><th>挂点</th><th>动作</th><th>闭环了什么</th></tr></thead>
+  <tbody>
+    <tr><td>压缩</td><td>before_model</td><td>改 messages（少）</td><td>上下文不会爆</td></tr>
+    <tr><td>卸载</td><td>after_tool</td><td>改 messages（换页）</td><td>工具不会撑爆上下文</td></tr>
+    <tr><td>可观测</td><td>全部</td><td>只读，不改</td><td>出了问题能查、能算账</td></tr>
+    <tr><td>审批</td><td>before_tool</td><td>停住，等人</td><td>危险动作有人兜</td></tr>
+    <tr><td>重试</td><td>after_model</td><td>jump 回 before_model</td><td>瞬时失败不终止任务</td></tr>
+    <tr><td>评审</td><td>after_agent</td><td>插 feedback + jump 回</td><td>"声称完成"不等于完成</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><b>中间件是一切行为的闭环。</b>它可评测（评审）、可介入（审批）、可影响记忆（压缩与卸载）、可观测（trace）、可容错（重试）。一个 agent 的能力上限由模型决定，<b>但它的可靠性和可运维性，几乎完全由这一层决定</b>。</p>
+
+__PAGER__
+
+<script>
+(function () {
+  /* ---------- ① 重试 ---------- */
+  const flow1 = new AgentFlow($('#flow1'), { nodes: STD_NODES, edges: STD_EDGES });
+  const log1 = new LogPanel($('#log1'));
+  const cap1 = $('#cap1');
+  const rf1 = $('#rf1');
+  const I1 = cap1.innerHTML;
+
+  const R = [
+    {
+      node: ['model'], edges: ['e_bm', 'e_m'],
+      cap: ['attempt 1', '<code>model_call</code> 发出去，260ms 后返回 <code>429 rate_limit_exceeded</code>。<b>这一步什么都没发生</b>——没有 token 生成，历史也没变化。'],
+      msg: ['tool', '<span style="color:var(--red)">POST /v1/messages → 429</span><br>retry-after: 1']
+    },
+    {
+      node: ['a_model'], edges: ['e_am_bt'],
+      cap: ['after_model · 判定', '中间件拿到响应：<code>status=429</code>。<b>这一类是可重试的</b>（4xx 里的限流、5xx、网络超时都可重试；参数错误、内容审核拒绝不可重试）。退避 <b>1.2s</b> 后 jump 回 before_model。'],
+      msg: ['system', 'after_model: 可重试错误 → delay=1.2s → <b>jump to before_model</b>']
+    },
+    {
+      node: ['model'], edges: ['e_bm', 'e_m', 'e_am_bt'],
+      cap: ['attempt 2 · 又失败', '同一个请求重发。这次还是 429——说明上游是真的在限流，不是抖动。<b>退避翻倍到 2.4s</b>。'],
+      msg: ['tool', '<span style="color:var(--red)">POST /v1/messages → 429</span><br>retry-after: 2<br>（等待 2.4s）']
+    },
+    {
+      node: ['model'], edges: ['e_loop', 'e_bm', 'e_m', 'e_am_bt', 'e_bt'],
+      cap: ['attempt 3 · 成功', '第三次回来了。循环继续往下走。<b>整段对上层完全透明</b>：agent 不知道自己重试过，只是这次运行多花了 6 秒。'],
+      msg: ['assistant', '<span style="color:var(--green)">200 OK</span> · 4,120ms · in=1,180 out=142<br>决定先看目录。']
+    }
+  ];
+
+  let p1;
+  function r1() {
+    flow1.reset(); log1.clear(); if (p1) p1.steps = R; cap1.innerHTML = I1; rf1.textContent = '';
+  }
+  p1 = new Player({
+    steps: R, min: 0,
+    box: { next: $('#next1'), prev: $('#prev1'), reset: $('#reset1'), total: $('#total1') },
+    resetAll: r1,
+    apply: function (s) {
+      flow1.highlight(s.node, s.edges);
+      cap1.innerHTML = '<span class="cap-k">' + s.cap[0] + '</span>' + s.cap[1];
+      if (s.msg) log1.push(s.msg[0], s.msg[1]);
+      rf1.textContent = 'attempt';
+    }
+  });
+  r1();
+
+  /* ---------- ② 评审 ---------- */
+  const flow2 = new AgentFlow($('#flow2'), { nodes: STD_NODES, edges: STD_EDGES });
+  const log2 = new LogPanel($('#log2'));
+  const cap2 = $('#cap2');
+  const I2 = cap2.innerHTML;
+
+  const E = [
+    {
+      node: ['model', 'a_model', 'end'], edges: ['e_start', 'e_bm', 'e_m', 'e_finish'],
+      cap: ['agent 说完成了', '模型 <code>finish_reason=stop</code>，输出"已修复 django 与 requests 两处高危漏洞"。<b>从它的视角，任务结束了。</b>'],
+      msg: ['assistant', '已完成。共修复 2 个高危漏洞：<br>· django 3.2.18 → 4.1（CVE-2021-45115）<br>· requests 2.28.1 → 2.31.0（CVE-2018-18074）']
+    },
+    {
+      node: ['end'], edges: ['e_finish'],
+      cap: ['after_agent · judge 介入', 'judge 拿到的是<b>最初那句 goal</b>，不是模型自述的结论："找出所有带高危漏洞的包"。它逐个核对：<code>requirements.txt</code> 里有 3 个高危包，结果只覆盖了 2 个。<b>不通过。</b>'],
+      msg: ['judge', '<span style="color:var(--red)">FAIL</span> · 覆盖度 2/3<br>遗漏：pyyaml 5.4.1 → CVE-2020-14343（任意代码执行）']
+    },
+    {
+      node: ['end'], edges: ['e_finish'],
+      cap: ['feedback 插回 messages', 'judge 的结论作为一条消息写进上下文。<b>它必须指明缺什么、依据是什么</b>——只说"不通过"，模型下一轮很可能原地重说一遍。'],
+      msg: ['judge', 'goal 要求覆盖所有高危包。当前只处理了 2 个，pyyaml 的 CVE-2020-14343 未修复。请继续，不要重复已完成的。']
+    },
+    {
+      node: ['model'], edges: ['e_finish', 'e_loop', 'e_bm', 'e_m'],
+      cap: ['jump to before_model', '<b>循环被重新拉开</b>。注意 messages 一条没删——模型接着原有的上下文继续，不需要重读一遍依赖文件。'],
+      msg: ['system', 'after_agent: 未达标 → <b>jump to before_model</b> · eval #2']
+    },
+    {
+      node: ['tool'], edges: ['e_am_bt', 'e_bt', 'e_t'],
+      cap: ['继续调工具', '模型这次直接去查漏掉的那个包。<b>同一个循环，只是多转了一圈。</b>'],
+      msg: ['tool', 'search_cve({"q":"pyyaml 5.4.1"})<br>→ CVE-2020-14343 · 9.8 critical']
+    },
+    {
+      node: ['end'], edges: ['e_loop', 'e_bm', 'e_finish'],
+      cap: ['再评审 · 通过', 'judge 第二次核对：3/3 覆盖，每条都给了版本与补丁。<b>这才是真正的 agent_end。</b>'],
+      msg: ['judge', '<span style="color:var(--green)">PASS</span> · 覆盖度 3/3<br>任务达成，允许结束。']
+    }
+  ];
+
+  let p2;
+  function r2() {
+    flow2.reset(); log2.clear(); if (p2) p2.steps = E; cap2.innerHTML = I2; rf2.textContent = '';
+  }
+  p2 = new Player({
+    steps: E, min: 0,
+    box: { next: $('#next2'), prev: $('#prev2'), reset: $('#reset2'), total: $('#total2') },
+    resetAll: r2,
+    apply: function (s) {
+      flow2.highlight(s.node, s.edges);
+      cap2.innerHTML = '<span class="cap-k">' + s.cap[0] + '</span>' + s.cap[1];
+      if (s.msg) log2.push(s.msg[0], s.msg[1]);
+    }
+  });
+  r2();
+})();
+</script>
