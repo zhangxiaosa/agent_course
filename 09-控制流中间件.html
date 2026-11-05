@@ -1373,7 +1373,7 @@ function bindSeg(selector, onChange) {
 
 <div class="caption" id="cap1" style="margin-top:8px"></div>
 
-<p>别小看"等一等"这件事。<b>失败的所有请求在同一毫秒重试，就是一次自我 DDoS</b>——上游刚缓过来又被压垮，你也就永远重试不上。所以退避必须是<b>指数 + 抖动</b>：</p>
+<p>重试间隔不能是常数。如果所有失败请求都按同一间隔同时重发，上游会在重试时刻再次收到与失败数量相同的请求量，<b>负载峰值只是被平移了一次，并没有消失</b>，整批重试通常仍会失败。所以间隔要同时带<b>指数增长和随机抖动</b>，把重试时刻分散开：</p>
 
 <div class="bo" aria-hidden="true">
   <div class="bo-item"><div class="bo-bar" style="height:22px"></div><span class="bo-lab">1s</span></div>
@@ -1443,7 +1443,7 @@ function bindSeg(selector, onChange) {
   <div class="body"><b>评审必须设上限</b>。judge 苛刻一点，模型改一点，judge 还不满意——这个环可以转到天荒地老，token 一路烧。<b><code>max_evals</code> 是硬约束</b>，到顶就交给人，或者带着"未完全达标"的标记退出。任何往回跳的边都要有次数上限，这是控制流中间件的通用规则。</div>
 </div>
 
-<h2>到这里，六个中间件可以收口了</h2>
+<h2>六个中间件的共同点</h2>
 
 <p>回头看它们的共同点：<b>每一个都是 <code>(hook, handler)</code>——挂在某个节点上，看当时的上下文，决定改数据还是改流向。</b></p>
 
