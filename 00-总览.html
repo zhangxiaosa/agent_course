@@ -965,6 +965,17 @@ tr:last-child td { border-bottom: 0; }
   pointer-events: none;
 }
 
+/* 流程节点：字号放大 + 按类型着色 */
+.fnode {
+  font-size: 13px; letter-spacing: 0; padding: 9px 12px; border-width: 1px;
+}
+.fnode[data-k="model"] { background: #e9f1fa; border-color: #93b6de; color: #24557f; }
+.fnode[data-k="tool"]  { background: #e4f5f5; border-color: #83c2c5; color: #0e6169; }
+.fnode[data-k="hook"]  { background: #fcf1df; border-color: #dfb072; color: #8a5410; }
+.fnode[data-k="done"]  { background: #e8f5ec; border-color: #96c9a4; color: #27673f; }
+.fnode[data-k="io"]    { background: #f2f4f7; border-color: #b3bcc8; color: #37424f; }
+.fnode.on { background: #fff; }
+
 </style>
 </head>
 <body>

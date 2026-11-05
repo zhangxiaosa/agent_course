@@ -965,6 +965,17 @@ tr:last-child td { border-bottom: 0; }
   pointer-events: none;
 }
 
+/* 流程节点：字号放大 + 按类型着色 */
+.fnode {
+  font-size: 13px; letter-spacing: 0; padding: 9px 12px; border-width: 1px;
+}
+.fnode[data-k="model"] { background: #e9f1fa; border-color: #93b6de; color: #24557f; }
+.fnode[data-k="tool"]  { background: #e4f5f5; border-color: #83c2c5; color: #0e6169; }
+.fnode[data-k="hook"]  { background: #fcf1df; border-color: #dfb072; color: #8a5410; }
+.fnode[data-k="done"]  { background: #e8f5ec; border-color: #96c9a4; color: #27673f; }
+.fnode[data-k="io"]    { background: #f2f4f7; border-color: #b3bcc8; color: #37424f; }
+.fnode.on { background: #fff; }
+
 </style>
 </head>
 <body>
@@ -1417,16 +1428,53 @@ function bindSeg(selector, onChange) {
     { id: 'aa',    label: 'after_agent',  x: 88, y: 12, k: 'hook' }
   ];
   const LIFE_EDGES = [
-    { id: 'e_ba',    d: 'M9.5 16.5 C10.5 26, 11.5 34, 12.5 41.5' },
-    { id: 'e_bm',    d: 'M17.5 43 C22 35, 24.5 28, 27 22.5' },
-    { id: 'e_m',     d: 'M34 18 L65.6 18' },
-    { id: 'e_am',    d: 'M70.5 22.5 C74 30, 78 36, 81.5 41.5' },
-    { id: 'e_bt',    d: 'M85 50 C82 60, 76 68, 71.5 73.5' },
-    { id: 'e_t',     d: 'M66.5 78 L34.5 78' },
-    { id: 'e_loop',  d: 'M29 73.5 C25 66, 21 58, 18 50.5', loop: true },
-    { id: 'e_exit',  d: 'M73.5 15 C77 12.5, 81 11.5, 83.5 12' }
+    { id: 'e_ba', from: 'before_agent', to: 'before_model',    d: 'M9.5 16.5 C10.5 26, 11.5 34, 12.5 41.5' },
+    { id: 'e_bm', from: 'before_model', to: 'model_call',    d: 'M17.5 43 C22 35, 24.5 28, 27 22.5' },
+    { id: 'e_m', from: 'model_call', to: 'after_model',     d: 'M34 18 L65.6 18' },
+    { id: 'e_am', from: 'after_model', to: 'before_tool',    d: 'M70.5 22.5 C74 30, 78 36, 81.5 41.5' },
+    { id: 'e_bt', from: 'before_tool', to: 'tool_call',    d: 'M85 50 C82 60, 76 68, 71.5 73.5' },
+    { id: 'e_t', from: 'tool_call', to: 'after_tool',     d: 'M66.5 78 L34.5 78' },
+    { id: 'e_loop', from: 'after_tool', to: 'before_model',  d: 'M29 73.5 C25 66, 21 58, 18 50.5', loop: true },
+    { id: 'e_exit', from: 'after_model', to: 'after_agent',  d: 'M73.5 15 C77 12.5, 81 11.5, 83.5 12' }
   ];
   const lifeFlow = new AgentFlow($('#flow'), { nodes: LIFE_NODES, edges: LIFE_EDGES });
+
+  /* 端点吸附到节点边框：字号变了也不会让箭头缩进框里 */
+  (function snapEdges() {
+    const fr = $('#flow').getBoundingClientRect();
+    const box = {};
+    $('#flow').querySelectorAll('.fnode').forEach(function (n) {
+      const r = n.getBoundingClientRect();
+      box[n.textContent.trim()] = {
+        cx: (r.left + r.width / 2 - fr.left) / fr.width * 100,
+        cy: (r.top + r.height / 2 - fr.top) / fr.height * 100,
+        hw: r.width / 2 / fr.width * 100,
+        hh: r.height / 2 / fr.height * 100
+      };
+    });
+    function hit(c, tx, ty) {
+      const dx = tx - c.cx, dy = ty - c.cy;
+      if (!dx && !dy) return [c.cx, c.cy];
+      const t = Math.min(Math.abs(dx) ? c.hw / Math.abs(dx) : 1e9,
+                         Math.abs(dy) ? c.hh / Math.abs(dy) : 1e9);
+      return [c.cx + dx * t, c.cy + dy * t];
+    }
+    LIFE_EDGES.forEach(function (e) {
+      const path = lifeFlow.edgeEls[e.id], a = box[e.from], b = box[e.to];
+      if (!path || !a || !b) return;
+      const n = (path.getAttribute('d').match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
+      if (n.length < 4) return;
+      const ctrl = n.slice(2, n.length - 2);
+      const s = hit(a, ctrl[0] !== undefined ? ctrl[0] : b.cx, ctrl[1] !== undefined ? ctrl[1] : b.cy);
+      const q = n.length >= 6 ? [n[n.length - 4], n[n.length - 3]] : [a.cx, a.cy];
+      const t = hit(b, q[0], q[1]);
+      const mid = ctrl.length ? ', ' + ctrl.join(' ') : '';
+      path.setAttribute('d', ctrl.length
+        ? 'M ' + s[0].toFixed(2) + ' ' + s[1].toFixed(2) + ' C ' + ctrl.join(' ') + ', ' + t[0].toFixed(2) + ' ' + t[1].toFixed(2)
+        : 'M ' + s[0].toFixed(2) + ' ' + s[1].toFixed(2) + ' L ' + t[0].toFixed(2) + ' ' + t[1].toFixed(2));
+    });
+  })();
+
   addFlowArrows($('#flow svg'), lifeFlow.edgeEls);
 
   const HOOKS = [
