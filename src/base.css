@@ -973,3 +973,34 @@ tr:last-child td { border-bottom: 0; }
 
 /* 窄容器里的流程图：字号与内边距收一档 */
 .flow.narrow .fnode { font-size: 11px; padding: 6px 8px; }
+
+/* ---------- 决策面板 ---------- */
+.dec-ctx {
+  font-family: var(--mono); font-size: 11px; line-height: 1.65; color: var(--text-2);
+  background: var(--bg-2); border: 1px solid var(--line); border-radius: 3px;
+  padding: 9px 11px; margin-bottom: 10px;
+}
+.dec-row {
+  display: grid; grid-template-columns: 148px 1fr 44px; gap: 9px; align-items: center;
+  padding: 5px 0; font-family: var(--mono); font-size: 11.5px; color: var(--text-2);
+}
+.dec-row .tr { height: 7px; background: var(--panel-2); border-radius: 3px; overflow: hidden; }
+.dec-row .tr i { display: block; height: 100%; width: 0; background: #b9c2cd; transition: width .36s ease-out; }
+.dec-row.on .tr i { background: var(--amber); }
+.dec-row .sc { text-align: right; color: var(--text-3); }
+.dec-row.on .sc { color: var(--amber); }
+.thr { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 11px; }
+.thr label { font-family: var(--mono); font-size: 11px; color: var(--text-2); display: block; }
+.thr label b { color: var(--amber); font-weight: 400; }
+.thr input[type=range] { width: 100%; margin-top: 6px; accent-color: #a9660f; }
+.seg3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+.seg-col { border: 1px solid var(--line); border-radius: 3px; padding: 9px 10px; min-height: 104px; background: var(--bg-2); }
+.seg-col h4 { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10px; font-weight: 400; letter-spacing: .04em; color: var(--text-3); margin: 0 0 6px; }
+.seg-col h4 b { color: var(--amber); font-weight: 400; }
+.seg-col .it { display: flex; justify-content: space-between; gap: 8px; font-family: var(--mono); font-size: 11px; padding: 3px 0; color: var(--text-2); }
+.cap-note { font-size: 12px; color: var(--text-3); margin-top: 8px; }
+@media (max-width: 760px) {
+  .seg3 { grid-template-columns: 1fr; }
+  .thr { grid-template-columns: 1fr; }
+  .dec-row { grid-template-columns: 118px 1fr 40px; }
+}

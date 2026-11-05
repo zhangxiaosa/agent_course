@@ -1,0 +1,159 @@
+<header class="ch-head">
+  <span class="ch-no">11 / DECISION</span>
+  <h1>决策：把「选一个」从生成里拆出来</h1>
+  <p class="ch-lede">agent 每转一圈，真正要回答的问题只有几类：<b>下一步调哪个工具、这条命令要不要批、这次算不算做完</b>。语言模型也能回答，但它回答的方式是"写一段话出来"——写 JSON，再解析。决策模型把这件事件换成另一种形式：<b>给候选打分，选最高分</b>。</p>
+</header>
+
+<h2>用生成做决策，代价在哪</h2>
+
+<p>语言模型输出的是 token 序列。哪怕结果只是一个工具名，它也要<b>一个一个 token 写出来</b>：先写 <code>{"tool":</code>，再写工具名，再写参数。这带来三笔开销。</p>
+
+<ul class="bul">
+  <li><b>时延跟着输出长度走。</b>自回归只能逐 token 解码，JSON 越长，等得越久。决策本身只是"选哪个"，却被迫付出一整段文本的生成成本。</li>
+  <li><b>结果要解析。</b>模型吐出的是文本，框架要 <code>JSON.parse</code> 一次。字段写错、引号缺失、多写一句话——整轮调用直接失败，得重试或降级。</li>
+  <li><b>候选多了只能串行问。</b>四个候选工具就是四次生成，或者一次生成里塞四个分支；前者慢，后者更容易写错。</li>
+</ul>
+
+<p>决策模型把这三个问题一起绕开。<b>它不是自回归的</b>：不逐个 token 解码，而是把上下文和候选集合一起编码，一次前向给每个候选算一个分。<b>候选之间互不依赖，可以并发</b>，输出也不是文本，而是分数或概率——不存在"解析失败"这一步。</p>
+
+<h2>两个落点：选工具，和要不要批</h2>
+
+<p>下面这块就是一个最典型的工具选择：上下文进来，四个候选动作各打一个分，最高分被选中。整个过程只有一次前向，没有生成任何 token。</p>
+
+<div class="dec" id="decA">
+  <div class="dec-ctx"><b>context</b> · 用户说「把线上日志里的 ERROR 汇总一下，别动源文件」。可用工具见下方候选。</div>
+  <div id="decRows"></div>
+  <div class="bar">
+    <button class="btn" data-v="primary" id="decGo">打分</button>
+    <button class="btn" data-v="ghost" id="decRe">清空</button>
+    <span class="step-no" id="decMeta">待打分</span>
+  </div>
+</div>
+
+<p>同一件事交给语言模型，框架要拿到一段形如 <code>{"tool":"read_logs","args":{...}}</code> 的文本再解析；交给决策模型，拿到的是 <b>四个数</b>。前者生成几十个 token，后者一次前向——差别不在聪明程度，在<b>输出形态</b>。</p>
+
+<h2>第二个落点：把审批从"每次问人"变成"按分数分流"</h2>
+
+<p>人工审批的瓶颈不是判断难，是<b>次数多</b>。每条命令都弹窗，用户第三天就会无脑点同意。既然决策模型能输出概率，就让它先给一个分，再按阈值分流：<b>高分直接放行，中间分段交给人，低分直接拒绝</b>。人只看真正模糊的那一段。</p>
+
+<div class="dec">
+  <div class="thr">
+    <label>放行阈值 ≥ <b id="tA">0.80</b><input type="range" id="sA" min="60" max="95" value="80"></label>
+    <label>拒绝阈值 &lt; <b id="tR">0.50</b><input type="range" id="sR" min="30" max="60" value="50"></label>
+  </div>
+  <div class="seg3">
+    <div class="seg-col"><h4><span>自动放行</span><b id="nPass">0</b></h4><div id="lPass"></div></div>
+    <div class="seg-col"><h4><span>人工审批</span><b id="nHuman">0</b></h4><div id="lHuman"></div></div>
+    <div class="seg-col"><h4><span>直接拒绝</span><b id="nDeny">0</b></h4><div id="lDeny"></div></div>
+  </div>
+</div>
+
+<p>拖动两根阈值就能看出这套机制的取舍：<b>阈值抬得越高，交给人看的越多</b>，安全性上升、效率下降；压得越低，放行越多，漏放危险动作的概率也随之上升。阈值不该拍脑袋定，应该拿真实审批记录去校准——被人工否掉的那些样本，分数本来应该落在哪个区间。</p>
+
+<h2>它替代不了什么</h2>
+
+<ul class="bul">
+  <li><b>它不生成内容。</b>decision 模型回答的是"从这几个里选哪个"、"要不要"，它写不出日志摘要、写不出补丁。生成那一段仍然由语言模型做。</li>
+  <li><b>候选集合要先给全。</b>它是在给定候选上打分，不是凭空空想。工具清单、审批策略、路由分支必须显式枚举出来——漏掉的候选，它永远选不到。</li>
+  <li><b>分数要能解释。</b>一个 0.83 的放行分，事后追责时需要知道它凭什么。决策这一步要进 trace，和工具调用、审批记录放在一起看。</li>
+</ul>
+
+<h2>放回循环里看</h2>
+
+<p>把决策模型放回这条循环，它接管的是三处「选一个」：进来时选第一个动作，每次模型想动手前过一遍审批，收尾时判断是否真的做完。其余环节照旧——语言模型负责想和写，工具负责执行。</p>
+
+<div class="flow" id="flow11" style="height:340px"></div>
+
+<p class="cap-note">亮着的三个节点是决策模型的位置：<code>before_tool</code> 判断这条命令放不放、<code>after_model</code> 决定这一次是不是继续调工具、<code>after_agent</code> 决定收尾还是打回。</p>
+
+<script>
+(function () {
+  /* ---------- 工具选择 ---------- */
+  const CANDS = [
+    { id: 'read_logs', s: 0.94 },
+    { id: 'grep_error', s: 0.88 },
+    { id: 'run_shell', s: 0.41 },
+    { id: 'delete_logs', s: 0.07 }
+  ];
+  const rowsEl = $('#decRows');
+  const meta = $('#decMeta');
+  let scored = false;
+
+  function drawRows() {
+    rowsEl.innerHTML = '';
+    CANDS.forEach(function (c) {
+      const d = document.createElement('div');
+      d.className = 'dec-row';
+      d.dataset.id = c.id;
+      d.innerHTML = '<span class="nm">' + c.id + '</span><span class="tr"><i></i></span><span class="sc">—</span>';
+      rowsEl.appendChild(d);
+    });
+    scored = false;
+    meta.textContent = '待打分';
+  }
+
+  $('#decGo').addEventListener('click', function () {
+    if (scored) return;
+    scored = true;
+    const els = rowsEl.querySelectorAll('.dec-row');
+    Array.prototype.forEach.call(els, function (el, i) {
+      const c = CANDS[i];
+      el.querySelector('.tr i').style.width = (c.s * 100) + '%';
+      el.querySelector('.sc').textContent = c.s.toFixed(2);
+    });
+    /* 并行：四根条同时开始，只保留一次前向的语义 */
+    setTimeout(function () {
+      let best = CANDS[0], bi = 0;
+      CANDS.forEach(function (c, i) { if (c.s > best.s) { best = c; bi = i; } });
+      els[bi].classList.add('on');
+      meta.textContent = '1 次前向 · ' + CANDS.length + ' 个候选 · 0 token 生成 → ' + best.id;
+    }, 380);
+  });
+
+  $('#decRe').addEventListener('click', drawRows);
+  drawRows();
+
+  /* ---------- 审批分流 ---------- */
+  const ITEMS = [
+    { t: '读 app.log 尾部 200 行', s: 0.96 },
+    { t: '重启 nginx', s: 0.84 },
+    { t: '删除 7 天前日志', s: 0.72 },
+    { t: '改 nginx.conf 的 buffer', s: 0.66 },
+    { t: 'rm -rf /var/cache/*', s: 0.31 },
+    { t: '清空 orders 表', s: 0.08 }
+  ];
+  const sA = $('#sA'), sR = $('#sR');
+
+  function route() {
+    let a = Number(sA.value) / 100, r = Number(sR.value) / 100;
+    if (a <= r) { a = r + 0.02; sA.value = String(Math.round(a * 100)); }
+    $('#tA').textContent = a.toFixed(2);
+    $('#tR').textContent = r.toFixed(2);
+    const buckets = { pass: [], human: [], deny: [] };
+    ITEMS.forEach(function (it) {
+      const k = it.s >= a ? 'pass' : (it.s >= r ? 'human' : 'deny');
+      buckets[k].push(it);
+    });
+    [['pass', 'lPass', 'nPass'], ['human', 'lHuman', 'nHuman'], ['deny', 'lDeny', 'nDeny']].forEach(function (m) {
+      const box = $('#' + m[1]);
+      box.innerHTML = '';
+      buckets[m[0]].forEach(function (it) {
+        const d = document.createElement('div');
+        d.className = 'it';
+        d.innerHTML = '<span>' + it.t + '</span><span>' + it.s.toFixed(2) + '</span>';
+        box.appendChild(d);
+      });
+      $('#' + m[2]).textContent = buckets[m[0]].length;
+    });
+  }
+  sA.addEventListener('input', route);
+  sR.addEventListener('input', route);
+  route();
+
+  /* ---------- 环形图 ---------- */
+  const flow = new AgentFlow($('#flow11'), { nodes: STD_NODES, edges: STD_EDGES });
+  addFlowArrows($('#flow11 svg'), flow.edgeEls);
+  flow.highlight(['b_tool', 'a_model', 'end'], ['e_am_bt', 'e_exit']);
+  flow.meta('decision · 3 处');
+})();
+</script>
