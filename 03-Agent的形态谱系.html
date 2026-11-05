@@ -1436,28 +1436,28 @@ function bindSeg(selector, onChange) {
 <!-- ===== ReAct ===== -->
 <div class="pane" data-p="react">
   <div class="fig tall narrow">
-    <svg class="gsvg" viewBox="0 0 470 300" role="img" aria-label="ReAct 循环">
-      <defs><marker id="ah" viewBox="0 0 8 8" refX="7.5" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L8 4 L0 8 Z" fill="#b9c2cd"></path></marker><marker id="ah2" viewBox="0 0 8 8" refX="7.5" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L8 4 L0 8 Z" fill="#a9660f"></path></marker></defs>
-      <path class="ge" marker-end="url(#ah)" d="M85 48 L150 108"></path>
-      <path class="ge" marker-end="url(#ah)" d="M270 125 L330 125"></path>
-      <path class="ge" marker-end="url(#ah)" d="M200 140 L200 225"></path>
-      <path class="ge on" marker-end="url(#ah2)" d="M145 250 C62 250, 62 118, 145 126"></path>
+    <svg class="gsvg" viewBox="0 0 560 322" role="img" aria-label="ReAct 循环">
+      <defs><marker id="ah" viewBox="0 0 8 8" refX="7.5" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L8 4 L0 8 Z" fill="#b9c2cd"></path></marker></defs>
+      <path class="ge" marker-end="url(#ah)" d="M155 48 L220 108"></path>
+      <path class="ge" marker-end="url(#ah)" d="M340 125 L400 125"></path>
+      <path class="ge" marker-end="url(#ah)" d="M270 140 L270 225"></path>
+      <path class="ge" marker-end="url(#ah)" d="M215 250 C132 250, 132 118, 215 126"></path>
 
-      <rect class="gn" x="40" y="20" width="90" height="28" rx="2"></rect>
-      <text class="gt" x="85" y="39" text-anchor="middle">agent_start</text>
+      <rect class="gn" x="110" y="20" width="90" height="28" rx="2"></rect>
+      <text class="gt" x="155" y="39" text-anchor="middle">agent_start</text>
 
-      <rect class="gn cur" x="145" y="110" width="125" height="30" rx="2"></rect>
-      <text class="gt" x="207" y="129" text-anchor="middle">model_call</text>
+      <rect class="gn" x="215" y="110" width="125" height="30" rx="2"></rect>
+      <text class="gt" x="277" y="129" text-anchor="middle">model_call</text>
 
-      <rect class="gn" x="145" y="225" width="125" height="30" rx="2"></rect>
-      <text class="gt" x="207" y="244" text-anchor="middle">tool_call</text>
+      <rect class="gn" x="215" y="225" width="125" height="30" rx="2"></rect>
+      <text class="gt" x="277" y="244" text-anchor="middle">tool_call</text>
 
-      <rect class="gn" x="330" y="110" width="110" height="30" rx="2"></rect>
-      <text class="gt" x="385" y="129" text-anchor="middle">agent_end</text>
+      <rect class="gn" x="400" y="110" width="110" height="30" rx="2"></rect>
+      <text class="gt" x="455" y="129" text-anchor="middle">agent_end</text>
 
-      <text class="gts" x="286" y="117">说不做了</text>
-      <text class="gts" x="214" y="172">要动手</text>
-      <text class="gts" x="14" y="196">回灌结果</text>
+      <text class="gts" x="344" y="117">任务完成</text>
+      <text class="gts" x="282" y="180">需要调用工具</text>
+      <text class="gts" x="215" y="292" text-anchor="middle">工具执行结果返回给模型</text>
     </svg>
   </div>
   <div class="caption"><span class="cap-k">没有图，只有一个环</span>起点永远指向 model_call；model_call 要么收工去 end，要么调一次工具；<b>tool_call 无条件指回 model_call</b>——下一步干什么，只能由模型重新看一遍历史来决定。</div>
