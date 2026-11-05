@@ -38,8 +38,6 @@
   <span class="step-no" id="total"></span>
 </div>
 
-<div id="gate"></div>
-
 <div class="caption" id="cap" style="margin-top:8px">
   <span class="cap-k">READY</span>
   agent 收到任务："<code>/var</code> 快满了，清一下缓存"。点「下一步」看它选了哪条命令。
@@ -93,13 +91,9 @@
   <div class="body"><b>审批机制最大的敌人是疲劳</b>。一个 agent 每次跑都弹三次确认，用户第三天就会无脑点"同意"——那时候审批层不但没保护你，还给了你虚假的安全感。<b>规则要准，不要多</b>：只拦真正不可逆的，剩下的用"改写后放行"或 dry-run 兜住。</div>
 </div>
 
-<h2>三个容易做错的地方</h2>
+<h2>谁来判这一下</h2>
 
-<p><b>① 超时默认怎么处理。</b>用户去开会了，审批卡挂了 10 分钟没人点。默认放行等于把闸门拆了；<b>正确做法是 fail-closed</b>——超时即拒绝，让模型走"用户不同意"那条路径，任务降级但不闯祸。</p>
-
-<p><b>② 拒绝要给模型留退路。</b>只回一句"不同意"，模型很可能原地重试同一条命令（它不知道为什么）。<b>把原因带上</b>："用户不同意执行 rm -rf /var/cache/*，理由是范围过大"——模型下一轮就会换 <code>find -mtime</code>，这正是上面演示里发生的事。</p>
-
-<p><b>③ 审批要留审计。</b>谁批的、什么时候、批的是哪条命令、当时看到的参数是什么。<b>事后追责靠的不是日志搜索，是结构化的审批记录</b>。这一条和第 07 章的可观测是同一套东西：审批事件本身就是一个 span。</p>
+<p>按成本和确定性排，一般分三层。<b>最便宜的是关键词</b>：参数里出现 <code>rm</code>、<code>--force</code>、<code>sudo</code> 就先记一笔。<b>再准一点的是关键词组合</b>：光有 <code>rm</code> 是日常工作，同时出现 <code>-rf</code>、通配符和系统目录才算真危险——组合能把误报压下去，这正是本章演示命中的那条规则。<b>第三层是让另一个模型按同一份规则复核参数</b>，处理关键词覆盖不到的自然语言意图（"把旧的都删掉"）。人只接前两层放不下的那一小批。</p>
 
 __PAGER__
 
@@ -109,7 +103,7 @@ __PAGER__
   const sp = new StatePanel($('#state'));
   const log = new LogPanel($('#log'));
   const cap = $('#cap');
-  const gate = $('#gate');
+  const logEl = $('#log');
   const flag = $('#gateflag');
   const INTRO = cap.innerHTML;
 
@@ -131,7 +125,7 @@ __PAGER__
     {
       node: ['b_tool'], edges: [],
       state: { turn: 1, messages: 2, tool: 'run_cmd', gate: '<b>D-01 命中</b>', decision: '<b>挂起</b>' },
-      cap: ['PAUSED · 工具还没执行', '<b>循环真的停在这里了。</b>工具调用还没有发生——右侧 messages 里没有任何 tool 消息。下面这张卡就是用户在此时看到的东西。'],
+      cap: ['PAUSED · 工具还没执行', '<b>循环真的停在这里了。</b>工具调用还没有发生——右侧 messages 里没有任何 tool 消息，多出来的是一张等待确认的卡片——那就是用户此刻看到的东西。'],
       open: true
     }
   ];
@@ -169,7 +163,7 @@ __PAGER__
   let player;
 
   function resetAll() {
-    flow.reset(); sp.render({}); log.clear(); gate.innerHTML = ''; flag.textContent = '';
+    flow.reset(); sp.render({}); log.clear(); flag.textContent = '';
     gateOpen = false;
     if (player) player.steps = BASE;
     log.push('system', '你是运维 agent。可用工具：<code>run_cmd</code> / <code>read_file</code>。');
@@ -179,15 +173,15 @@ __PAGER__
 
   function renderGate() {
     gateOpen = true;
-    gate.innerHTML =
-      '<div class="approve" style="margin-top:2px">' +
-      '<div class="approve-h"><span>需要你确认 · run_cmd</span><span>D-01</span></div>' +
-      '<div class="approve-q">agent 想执行下面这条命令。它匹配了<b>递归删除 + 通配符 + 系统目录</b>三条规则，已暂停。</div>' +
+    log.push('human',
+      '<div class="approve">' +
+      '<div class="approve-h"><span>等待确认 · run_cmd</span><span>D-01</span></div>' +
+      '<div class="approve-q">这条命令匹配了 <b>递归删除 + 通配符 + 系统目录</b>，循环已停在这里。</div>' +
       '<div class="approve-cmd">$ rm -rf /var/cache/*</div>' +
       '<div class="approve-row">' +
       '<button class="btn" data-v="danger" id="deny">拒绝</button>' +
       '<button class="btn" data-v="primary" id="allow">同意执行</button>' +
-      '</div></div>';
+      '</div></div>');
 
     $('#deny').addEventListener('click', function () { choose(REJECT); });
     $('#allow').addEventListener('click', function () { choose(APPROVE); });
@@ -195,7 +189,7 @@ __PAGER__
 
   function choose(branch) {
     gateOpen = false;
-    gate.innerHTML = '';
+    logEl.querySelectorAll('.approve button').forEach(function (b) { b.disabled = true; });
     flag.textContent = '';
     player.steps = BASE.concat(branch);
     player.next();
