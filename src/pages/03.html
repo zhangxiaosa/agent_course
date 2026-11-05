@@ -4,13 +4,13 @@
   <p class="ch-lede">同样的模型、同样的工具，换个拓扑就能解决完全不同的问题。<b>形态不是风格选择，是成本与可控性的权衡</b>——越自由的结构越能处理未知路径，也越难预测它下一步会干什么。</p>
 </header>
 
-<p>五种形态，按"自由度从低到高"排：<b>CoT 是一条线，ToT 是一棵树，Plan-and-Execute 是两段，工作流是一张人写死的图，ReAct 是一个环</b>。点上面的标签逐个看，每个都给了一个能上手玩的示意。</p>
+<p>五种形态，按「自由度从低到高」排：<b>CoT 是一条线，ToT 是一棵树，Plan-and-Execute 是两段，工作流是一张人画的图，ReAct 是一个环</b>。点上面的标签逐个看，每个都给了一个能上手玩的示意。</p>
 
 <div class="seg" id="seg">
   <button class="seg-btn" data-v="cot" aria-selected="true">Chain of Thought</button>
   <button class="seg-btn" data-v="tot" aria-selected="false">Tree of Thought</button>
   <button class="seg-btn" data-v="plan" aria-selected="false">Plan-and-Execute</button>
-  <button class="seg-btn" data-v="wf" aria-selected="false">工作流 DAG</button>
+  <button class="seg-btn" data-v="wf" aria-selected="false">工作流</button>
   <button class="seg-btn" data-v="react" aria-selected="false">ReAct</button>
 </div>
 
@@ -30,7 +30,7 @@
   </div>
   <div class="caption"><span class="cap-k">一条直线，没有岔路</span>每一步的输出直接成为下一步的输入。<b>错了没有回头路</b>——想改只能从头再来。</div>
   <div class="mrow">
-    <div class="mcard" data-c="model"><span class="mc-t">怎么工作</span><span class="mc-d">一次调用里让它先写步骤、再给结论（CoT prompting）；或工程上拆成串行多次调用，上一步输出当下一步输入。你说的"多调几次 llm 逼它思考"，是后者。</span></div>
+    <div class="mcard" data-c="model"><span class="mc-t">怎么工作</span><span class="mc-d">一次调用里让它先写步骤、再给结论（CoT prompting）；或工程上拆成串行多次调用，上一步输出当下一步输入。</span></div>
     <div class="mcard" data-c="model"><span class="mc-t">什么时候用</span><span class="mc-d">路径唯一、不需要外部信息、步骤可预见。算术、格式转换、单文档摘要。</span></div>
     <div class="mcard" data-c="hook"><span class="mc-t">代价</span><span class="mc-d">一条路走到黑。步骤一长，前后会自相矛盾，而且没有任何机制能发现它错了。</span></div>
   </div>
@@ -38,14 +38,16 @@
 
 <!-- ===== ToT ===== -->
 <div class="pane" data-p="tot">
-  <div class="tot" id="totfig">
-    <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" id="totlines"></svg>
+  <div class="fig tall">
+    <svg id="totfig" class="gsvg" viewBox="0 0 1000 370" role="img" aria-label="参数调优的搜索树"></svg>
+    <div class="swipe">← 可左右滑动</div>
   </div>
-  <div class="caption"><span class="cap-k">点上面任意一个思路，展开它的下一步</span><span id="totst">把"下一步"变成"多个下一步"：每个分支独立评估，高的留、低的剪，全死了就回溯上一层换路子。<b>试试点三个分支看看。</b></span></div>
+  <div class="loopnote">两层动作：<b>a +1</b> 与 <b>b −10%</b>，每一层都能再走任意一步</div>
+  <div class="caption" id="totcap"><span class="cap-k">点任意节点，剪掉它和它下面的一切</span><span id="totst"></span></div>
   <div class="mrow">
-    <div class="mcard" data-c="model"><span class="mc-t">怎么工作</span><span class="mc-d">生成 N 个候选 → 让评估器打分 → 保留 top-k → 对每个保留项继续展开 → 全部分支剪光时回溯到上一层。</span></div>
-    <div class="mcard" data-c="model"><span class="mc-t">什么时候用</span><span class="mc-d">搜索式问题：性能调优、定理证明、方案比选。答案是"试出来的"而不是"想出来的"那些。</span></div>
-    <div class="mcard" data-c="hook"><span class="mc-t">代价</span><span class="mc-d">调用次数 = 分支数 × 深度。深度 3、每层 3 个分支就是 27 次调用。而且你要有个靠得住的评估器，否则剪枝就是瞎剪。</span></div>
+    <div class="mcard" data-c="model"><span class="mc-t">怎么工作</span><span class="mc-d">生成 N 个候选 → 让评估器打分 → 保留 top-k → 对每个保留项继续展开 → 全部分支剪光时回溯到上一层换分解方式。</span></div>
+    <div class="mcard" data-c="model"><span class="mc-t">什么时候用</span><span class="mc-d">搜索式问题：参数调优、定理证明、方案比选。答案是「试出来的」，不是「想出来的」。</span></div>
+    <div class="mcard" data-c="hook"><span class="mc-t">代价</span><span class="mc-d">调用次数 = 分支数 × 深度。要有一个靠得住的评估器，否则剪枝就是瞎剪——把好分支剪掉，比不剪更贵。</span></div>
   </div>
 </div>
 
@@ -70,48 +72,105 @@
   </div>
 </div>
 
-<!-- ===== Workflow DAG ===== -->
+<!-- ===== 工作流 ===== -->
 <div class="pane" data-p="wf">
-  <div class="fig" id="wffig">
-    <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-      <line class="fl" x1="50" y1="13" x2="50" y2="27"></line>
-      <line class="fl" x1="44" y1="30" x2="22" y2="47"></line>
-      <line class="fl" x1="50" y1="30" x2="50" y2="47"></line>
-      <line class="fl" x1="56" y1="30" x2="78" y2="47"></line>
-      <line class="fl" x1="22" y1="53" x2="44" y2="71"></line>
-      <line class="fl" x1="50" y1="53" x2="50" y2="71"></line>
-      <line class="fl" x1="78" y1="53" x2="56" y2="71"></line>
-      <line class="fl" x1="50" y1="77" x2="50" y2="89"></line>
+  <div class="fig tall">
+    <svg id="wffig" class="gsvg" viewBox="0 0 1000 500" role="img" aria-label="带路由、并行与汇总的工作流">
+      <defs><marker id="ah" viewBox="0 0 8 8" refX="7.5" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L8 4 L0 8 Z" fill="#b9c2cd"></path></marker><marker id="ah2" viewBox="0 0 8 8" refX="7.5" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L8 4 L0 8 Z" fill="#a9660f"></path></marker></defs>
+      <path class="ge" marker-end="url(#ah)" id="e1" d="M230 50 L230 90"></path>
+      <path class="ge" marker-end="url(#ah)" id="e2" d="M212 120 C150 152, 118 158, 108 185"></path>
+      <path class="ge" marker-end="url(#ah)" id="e3" d="M230 120 L230 185"></path>
+      <path class="ge" marker-end="url(#ah)" id="e4" d="M250 120 C300 152, 342 158, 352 185"></path>
+      <path class="ge" marker-end="url(#ah)" id="e5" d="M292 118 C470 142, 620 152, 726 185"></path>
+
+      <path class="ge" marker-end="url(#ah)" id="e6" d="M108 213 C130 242, 172 246, 202 270"></path>
+      <path class="ge" marker-end="url(#ah)" id="e7" d="M230 213 L230 270"></path>
+      <path class="ge" marker-end="url(#ah)" id="e8" d="M352 213 C330 242, 288 246, 258 270"></path>
+      <path class="ge" marker-end="url(#ah)" id="e9" d="M230 298 L230 355"></path>
+      <path class="ge" marker-end="url(#ah)" id="e10" d="M290 383 C380 420, 420 430, 468 450"></path>
+
+      <path class="ge" marker-end="url(#ah)" id="e11" d="M730 213 L730 270"></path>
+      <path class="ge" marker-end="url(#ah)" id="e12" d="M700 298 C660 380, 592 425, 548 450"></path>
+
+      <rect class="gn" data-n="start" x="175" y="20" width="110" height="30" rx="2"></rect>
+      <text class="gt" x="230" y="39" text-anchor="middle">start</text>
+
+      <rect class="gn" data-n="router" x="150" y="90" width="160" height="30" rx="2"></rect>
+      <text class="gt" x="230" y="109" text-anchor="middle">router · 分类</text>
+
+      <rect class="gn" data-n="logs" x="45" y="185" width="120" height="28" rx="2"></rect>
+      <text class="gt" x="105" y="203" text-anchor="middle">日志检索</text>
+      <rect class="gn" data-n="deploys" x="170" y="185" width="120" height="28" rx="2"></rect>
+      <text class="gt" x="230" y="203" text-anchor="middle">变更记录</text>
+      <rect class="gn" data-n="tickets" x="295" y="185" width="120" height="28" rx="2"></rect>
+      <text class="gt" x="355" y="203" text-anchor="middle">相似工单</text>
+
+      <rect class="gn" data-n="merge" x="170" y="270" width="120" height="28" rx="2"></rect>
+      <text class="gt" x="230" y="288" text-anchor="middle">merge</text>
+
+      <rect class="gn" data-n="diagnose" x="130" y="355" width="200" height="28" rx="2"></rect>
+      <text class="gt" x="230" y="373" text-anchor="middle">diagnose · 出结论</text>
+
+      <rect class="gn" data-n="kb" x="660" y="185" width="140" height="28" rx="2"></rect>
+      <text class="gt" x="730" y="203" text-anchor="middle">kb_search</text>
+      <rect class="gn" data-n="answer" x="660" y="270" width="140" height="28" rx="2"></rect>
+      <text class="gt" x="730" y="288" text-anchor="middle">answer</text>
+
+      <rect class="gn" data-n="end" x="445" y="450" width="110" height="30" rx="2"></rect>
+      <text class="gt" x="500" y="469" text-anchor="middle">end</text>
+
+      <rect class="glb" x="292" y="150" width="112" height="16" rx="2"></rect>
+      <text class="gts" x="348" y="161" text-anchor="middle">故障类 · 三路并发</text>
+      <rect class="glb" x="478" y="136" width="94" height="16" rx="2"></rect>
+      <text class="gts" x="525" y="147" text-anchor="middle">咨询类 · 单路</text>
     </svg>
-    <div class="tnode" style="left:50%;top:10%" data-k="start">start</div>
-    <div class="tnode" style="left:50%;top:30%" data-k="router" data-s="cur">router</div>
-    <div class="tnode" style="left:20%;top:50%" data-k="doc">doc_search</div>
-    <div class="tnode" style="left:50%;top:50%" data-k="code">code_search</div>
-    <div class="tnode" style="left:80%;top:50%" data-k="ticket">ticket_search</div>
-    <div class="tnode" style="left:50%;top:74%" data-k="merge">merge</div>
-    <div class="tnode" style="left:50%;top:91%" data-k="end" data-s="ok">end</div>
+    <div class="swipe">← 可左右滑动</div>
   </div>
-  <div class="caption" id="wfcap"><span class="cap-k">点节点看它干什么</span>路由一个查询，三个检索<b>并发</b>跑，结果在 merge 汇合。<b>图是人写的，所以可复现、可审计、可加边</b>——代价是遇到图上没有的情况它不会自己想办法。</div>
+  <div class="steps">
+    <button class="btn" id="wfNext">下一步</button>
+    <button class="btn" id="wfReset">重置</button>
+    <span class="stepn" id="wfN">0 / 5</span>
+  </div>
+  <div class="caption" id="wfcap"><span class="cap-k">点「下一步」看节点走到哪</span>入口先校验一次请求，router 判断类型：故障类往下并发三路检索，再 merge 汇合出结论；咨询类则单路查知识库直接作答。<b>两条分支最终都收口到 end。</b></div>
   <div class="mrow">
     <div class="mcard" data-c="model"><span class="mc-t">怎么工作</span><span class="mc-d">节点是 LLM 调用、工具调用或一个判断；边是数据流。分支、并发、汇总都是图的属性，不是模型的自由发挥。</span></div>
     <div class="mcard" data-c="model"><span class="mc-t">什么时候用</span><span class="mc-d">流程稳定、要求结果一致、要给别人看流程图当交付物。客服工单、内容审核、数据管线。</span></div>
-    <div class="mcard" data-c="hook"><span class="mc-t">代价</span><span class="mc-d">覆盖不到的情况只能靠人加边。图越大越难维护，最后往往退化成"半个 agent"。</span></div>
+    <div class="mcard" data-c="hook"><span class="mc-t">代价</span><span class="mc-d">覆盖不到的情况只能靠人加边。图越大越难维护，最后往往退化成「半个 agent」。</span></div>
+  </div>
+  <div class="note" data-t="info">
+    <div class="bar"></div>
+    <div class="body"><b>图不等于 DAG</b>：真实工作流允许回路——评审不通过就回到 diagnose 重跑，某一路超时就回 router 降级。这里为了看清并行，只画了一次成型的部分。</div>
   </div>
 </div>
 
 <!-- ===== ReAct ===== -->
 <div class="pane" data-p="react">
-  <div class="fig short">
-    <div class="chain">
-      <span class="cd cur">model_call</span>
-      <span class="ar"></span>
-      <span class="cd">tool_call</span>
-      <span class="ar"></span>
-      <span class="cd">messages += result</span>
-    </div>
-    <div class="loopnote">↺ 回到 model_call · 直到 finish_reason = stop</div>
+  <div class="fig tall narrow">
+    <svg class="gsvg" viewBox="0 0 470 300" role="img" aria-label="ReAct 循环">
+      <defs><marker id="ah" viewBox="0 0 8 8" refX="7.5" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L8 4 L0 8 Z" fill="#b9c2cd"></path></marker><marker id="ah2" viewBox="0 0 8 8" refX="7.5" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L8 4 L0 8 Z" fill="#a9660f"></path></marker></defs>
+      <path class="ge" marker-end="url(#ah)" d="M85 48 L150 108"></path>
+      <path class="ge" marker-end="url(#ah)" d="M270 125 L330 125"></path>
+      <path class="ge" marker-end="url(#ah)" d="M200 140 L200 225"></path>
+      <path class="ge on" marker-end="url(#ah2)" d="M145 250 C62 250, 62 118, 145 126"></path>
+
+      <rect class="gn" x="40" y="20" width="90" height="28" rx="2"></rect>
+      <text class="gt" x="85" y="39" text-anchor="middle">agent_start</text>
+
+      <rect class="gn cur" x="145" y="110" width="125" height="30" rx="2"></rect>
+      <text class="gt" x="207" y="129" text-anchor="middle">model_call</text>
+
+      <rect class="gn" x="145" y="225" width="125" height="30" rx="2"></rect>
+      <text class="gt" x="207" y="244" text-anchor="middle">tool_call</text>
+
+      <rect class="gn" x="330" y="110" width="110" height="30" rx="2"></rect>
+      <text class="gt" x="385" y="129" text-anchor="middle">agent_end</text>
+
+      <text class="gts" x="286" y="117">说不做了</text>
+      <text class="gts" x="214" y="172">要动手</text>
+      <text class="gts" x="14" y="196">回灌结果</text>
+    </svg>
   </div>
-  <div class="caption"><span class="cap-k">没有图，只有循环</span>下一步做什么，由模型看着历史自己决定。<b>2022-10 的 ReAct 论文，今天成了绝大多数 coding agent 的骨架</b>，因为编码任务的路径本来就不可预知。完整回放见下一章。</div>
+  <div class="caption"><span class="cap-k">没有图，只有一个环</span>起点永远指向 model_call；model_call 要么收工去 end，要么调一次工具；<b>tool_call 无条件指回 model_call</b>——下一步干什么，只能由模型重新看一遍历史来决定。</div>
   <div class="mrow">
     <div class="mcard" data-c="model"><span class="mc-t">怎么工作</span><span class="mc-d">model_call 产出工具参数 → tool_call 执行 → 结果追加进 messages → 再调模型，整段历史全量重放。</span></div>
     <div class="mcard" data-c="model"><span class="mc-t">什么时候用</span><span class="mc-d">路径不可预知、需要边做边看。Coding、运维排查、网页操作。<b>agentic RL 训练的也正是这个环。</b></span></div>
@@ -129,13 +188,13 @@
     <tr><td><b>CoT</b></td><td>直线</td><td>1 ~ n 串行</td><td>高</td><td>推理、格式转换</td></tr>
     <tr><td><b>ToT</b></td><td>树，可回溯</td><td>分支 × 深度</td><td>中</td><td>调优、方案比选</td></tr>
     <tr><td><b>Plan-and-Execute</b></td><td>两段式</td><td>1 + n</td><td>高（计划冻结）</td><td>长任务、需人审</td></tr>
-    <tr><td><b>工作流 DAG</b></td><td>图，人写死</td><td>节点数</td><td>最高</td><td>稳定流程、要审计</td></tr>
+    <tr><td><b>工作流</b></td><td>图，人画，可带环</td><td>节点数</td><td>最高</td><td>稳定流程、要审计</td></tr>
     <tr><td><b>ReAct</b></td><td>环</td><td>不定，受上限约束</td><td>最低</td><td>Coding、开放任务</td></tr>
   </tbody>
 </table>
 </div>
 
-<p>注意这张表里没有"最好"的一列。<b>可预见性和能力是反向的</b>：图越死，你越能保证它不闯祸，也越不能指望它解决图外的问题。真实系统常常混着用——外层是 DAG（保证流程），每个节点里塞一个 ReAct 环（处理节点内的不确定性）。</p>
+<p>这张表里没有「最好」的一列。<b>可预见性和能力是反向的</b>：图越死，你越能保证它不闯祸，也越不能指望它解决图外的问题。真实系统常常混着用——外层是图（保证流程），每个节点里塞一个 ReAct 环（处理节点内的不确定性）。</p>
 
 __PAGER__
 
@@ -146,58 +205,78 @@ __PAGER__
     $$('.pane').forEach(function (p) { p.classList.toggle('on', p.dataset.p === k); });
   });
 
-  /* ---- ToT ---- */
-  const TOT_L1 = [
-    { x: 17, label: '加索引', child: { y: 80, label: '单列索引 · 选择性不足', s: 'bad', t: '8.6s' } },
-    { x: 50, label: '改执行计划', child: { y: 80, label: '拆子查询 + 覆盖索引', s: 'ok', t: '1.2s' } },
-    { x: 83, label: '加缓存', child: { y: 80, label: '缓存命中率 12%', s: 'bad', t: '7.9s' } }
+  /* ================= ToT：参数调优的搜索树 ================= */
+  const TOT = [
+    { id: 'r',   p: null, x: 500, y: 32,  act: '', t: 'a=1.0 · b=1.00 · 8.0s' },
+    { id: 'a1',  p: 'r',  x: 250, y: 118, act: 'a', t: 'a=2.0 · 8.4s' },
+    { id: 'b1',  p: 'r',  x: 750, y: 118, act: 'b', t: 'b=0.90 · 7.1s' },
+    { id: 'aa',  p: 'a1', x: 125, y: 202, act: 'a', t: 'a=3.0 · 8.6s' },
+    { id: 'ab',  p: 'a1', x: 375, y: 202, act: 'b', t: 'a=2.0 b=0.90 · 7.5s' },
+    { id: 'ba',  p: 'b1', x: 625, y: 202, act: 'a', t: 'a=2.0 b=0.90 · 7.5s' },
+    { id: 'bb',  p: 'b1', x: 875, y: 202, act: 'b', t: 'b=0.81 · 6.4s' },
+    { id: 'aaa', p: 'aa', x: 70,  y: 286, act: 'a', t: 'a=4.0 · 8.9s' },
+    { id: 'aab', p: 'aa', x: 190, y: 286, act: 'b', t: 'a=3.0 b=0.90 · 8.1s' },
+    { id: 'aba', p: 'ab', x: 310, y: 286, act: 'a', t: 'a=3.0 b=0.90 · 8.1s' },
+    { id: 'abb', p: 'ab', x: 430, y: 286, act: 'b', t: 'a=2.0 b=0.81 · 6.8s' },
+    { id: 'baa', p: 'ba', x: 550, y: 286, act: 'a', t: 'a=3.0 b=0.90 · 8.1s' },
+    { id: 'bab', p: 'ba', x: 670, y: 286, act: 'b', t: 'a=2.0 b=0.81 · 6.8s' },
+    { id: 'bba', p: 'bb', x: 790, y: 286, act: 'a', t: 'a=2.0 b=0.81 · 6.8s' },
+    { id: 'bbb', p: 'bb', x: 910, y: 286, act: 'b', t: 'b=0.729 · 6.1s' }
   ];
-  const totOpen = [false, false, false];
-  const fig = $('#totfig');
+  const BEST = { r: 1, b1: 1, bb: 1, bbb: 1 };
+  const pruned = {};
+  const byId = {};
+  TOT.forEach(function (n) { byId[n.id] = n; });
+  function kids(id) { return TOT.filter(function (n) { return n.p === id; }); }
+  function isPruned(n) {
+    if (!n) return false;
+    if (pruned[n.id]) return true;
+    return n.p ? isPruned(byId[n.p]) : false;
+  }
 
   function drawTot() {
-    let svg = '';
-    let html = '<div class="tnode" style="left:50%;top:10%" data-s="cur">慢查询 8.0s</div>';
-    const opened = totOpen.filter(Boolean).length;
-    const okCount = TOT_L1.filter(function (b, i) { return totOpen[i] && b.child.s === 'ok'; }).length;
-
-    TOT_L1.forEach(function (b, i) {
-      const s = !totOpen[i] ? '' : (b.child.s === 'ok' ? 'ok' : 'bad');
-      svg += '<line class="fl" x1="50" y1="14" x2="' + b.x + '" y2="46"></line>';
-      html += '<div class="tnode" style="left:' + b.x + '%;top:44%" data-k="t' + i + '"' +
-        (s ? ' data-s="' + s + '"' : '') + '>' + b.label + '</div>';
-      if (totOpen[i]) {
-        svg += '<line class="fl' + (b.child.s === 'ok' ? ' on' : '') + '" x1="' + b.x + '" y1="48" x2="' + b.x + '" y2="76"></line>';
-        html += '<div class="tnode" style="left:' + b.x + '%;top:80%" data-s="' + b.child.s + '">' + b.child.label + ' ' + b.child.t + '</div>';
+    let s = '';
+    TOT.forEach(function (n) {
+      if (n.p) {
+        const pa = byId[n.p];
+        s += '<path class="ge ' + (n.act === 'a' ? 'gea' : 'geb') + '" d="M' + pa.x + ' ' + (pa.y + 16) +
+             ' L' + n.x + ' ' + (n.y - 16) + '"></path>';
       }
     });
-
-    fig.innerHTML = '<svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">' + svg + '</svg>' + html;
-    bindTot();
-
-    const st = $('#totst');
-    if (opened === 0) {
-      st.innerHTML = '把"下一步"变成"多个下一步"：每个分支独立评估，高的留、低的剪，全死了就回溯上一层换路子。<b>点上面任意一个思路展开它。</b>';
-    } else if (okCount === 0) {
-      st.innerHTML = '已展开 ' + opened + ' 条，全部剪枝。<b>此时回溯到上一层，换一种分解方式</b>——这就是 ToT 和 CoT 的分水岭：它允许"想错了"这件事发生。';
-    } else {
-      st.innerHTML = '已展开 ' + opened + ' 条，评估后保留 ' + okCount + ' 条（' +
-        (okCount ? '1.2s 达标' : '') + '）、剪枝 ' + (opened - okCount) + ' 条。<b>只对保留下来的分支继续加深，其余不再花 token。</b>';
-    }
-  }
-
-  function bindTot() {
-    $$('[data-k^="t"]', fig).forEach(function (el) {
-      el.addEventListener('click', function () {
-        const i = parseInt(el.dataset.k.slice(1), 10);
-        totOpen[i] = !totOpen[i];
-        drawTot();
-      });
+    TOT.forEach(function (n) {
+      const bad = isPruned(n);
+      const best = !!BEST[n.id] && !bad;
+      const w = n.id === 'r' ? 176 : 112, h = 34;
+      s += '<rect class="gn' + (best ? ' best' : '') + (bad ? ' dim' : '') + '" x="' + (n.x - w / 2) + '" y="' + (n.y - 17) +
+           '" width="' + w + '" height="' + h + '" rx="2" data-id="' + n.id + '"></rect>';
+      s += '<text class="gt' + (bad ? ' dim' : '') + '" x="' + n.x + '" y="' + (n.y - 3) + '" text-anchor="middle" data-id="' + n.id + '">' +
+           (n.act === 'a' ? 'a +1' : n.act === 'b' ? 'b −10%' : '起点') + '</text>';
+      s += '<text class="gts' + (bad ? ' dim' : '') + '" x="' + n.x + '" y="' + (n.y + 10) + '" text-anchor="middle" data-id="' + n.id + '">' + n.t + '</text>';
     });
+    s += '<text class="gts" x="500" y="336" text-anchor="middle">深度 3 = 8 条候选 · 深度 5 = 32 条 · 每条都要跑一次评估</text>';
+    $('#totfig').innerHTML = s;
+
+    const cut = TOT.filter(function (n) {
+      const pa = n.p ? byId[n.p] : null;
+      return pruned[n.id] && !(pa && isPruned(pa));
+    }).length;
+    const alive = TOT.filter(function (n) { return !isPruned(n); }).length;
+    $('#totst').innerHTML = cut === 0
+      ? '同一组动作可以反复叠加：a 连加三次到 a=4.0（8.9s，越调越慢），b 连降两次到 b=0.81（6.4s），三次到 b=0.729（6.1s，目前最优）。<b>点任意节点，剪掉这条分支。</b>'
+      : '剪掉 ' + cut + ' 处，剩下 <b>' + alive + '</b> 个节点还活着。剪枝省下的不是 token，是把它挪给更可能对的分支。';
   }
+
+  $('#totfig').addEventListener('click', function (ev) {
+    const id = ev.target.getAttribute('data-id');
+    if (!id || id === 'r') return;
+    const n = byId[id];
+    if (n.p && isPruned(byId[n.p])) return;
+    pruned[id] = !pruned[id];
+    drawTot();
+  });
   drawTot();
 
-  /* ---- Plan-and-Execute ---- */
+  /* ================= Plan-and-Execute ================= */
   const PLAN = [
     ['p1', '列出近 7 天全部告警，去重'],
     ['p2', '按服务聚簇，找出重复率最高的 3 个'],
@@ -227,23 +306,51 @@ __PAGER__
   $('#planReset').addEventListener('click', function () { pi = 0; drawPlan(); });
   drawPlan();
 
-  /* ---- Workflow ---- */
+  /* ================= 工作流：路由 + 并发 + 汇总 ================= */
   const WF = {
     start: '入口。校验参数、装配初始 state，然后交给 router。',
-    router: '一次轻量模型调用：判断这个问题该查文档、查代码还是查工单。三个分支<b>并发</b>发出，不排队。',
-    doc: '并发分支 1。向量检索文档库，返回 top-5 段落。',
-    code: '并发分支 2。符号检索代码仓，返回引用链。',
-    ticket: '并发分支 3。检索历史工单，返回相似案例。',
-    merge: '汇合点：等三个分支全部返回，按权重拼接、去重、截断，再交给下一个节点。'
-      + '<b>并发省时间，merge 是代价</b>——它必须处理"某个分支超时了怎么办"。',
-    end: '输出节点。这里是唯一允许失败重试的地方（模板渲染、格式校验）。'
+    router: '一次轻量模型调用：判断这张工单是故障类还是咨询类。故障类往下开三路并发，咨询类走右边单路。',
+    logs: '并发路 1。按 trace id 拉日志，只取 ERROR 上下一百行。',
+    deploys: '并发路 2。查同期变更记录，看有没有人在事发前后发版。',
+    tickets: '并发路 3。检索历史工单，找相似现象和处置方式。',
+    merge: '汇合点：等三路全部返回，按权重拼接、去重、截断。<b>并发省时间，merge 是代价</b>——它必须处理「某一路超时了怎么办」。',
+    diagnose: '把汇合后的证据交给模型，出根因和不带猜测的处理建议。',
+    kb: '咨询类的唯一一路：直接检索知识库，不并发。',
+    answer: '套用回复模板，把答案整理成可以直接发出去的话。',
+    end: '出口。两条分支都收口到这里，统一做格式校验和落库。'
   };
-  $$('[data-k]', $('#wffig')).forEach(function (el) {
-    el.addEventListener('click', function () {
-      $$('[data-k]', $('#wffig')).forEach(function (o) { o.removeAttribute('data-s'); });
-      el.setAttribute('data-s', 'cur');
-      $('#wfcap').innerHTML = '<span class="cap-k">' + el.dataset.k + '</span>' + WF[el.dataset.k];
+  const WSTEP = [
+    { n: ['start'], e: [], d: '从入口开始，此时还没有任何分类信息。' },
+    { n: ['router'], e: ['e1'], d: 'router 读一遍请求判定类型。这一步很轻，通常一次小模型调用。' },
+    { n: ['logs', 'deploys', 'tickets'], e: ['e2', 'e3', 'e4'], d: '故障类：三路<b>同时</b>发出，谁先回来谁先到 merge，不排队。' },
+    { n: ['merge'], e: ['e6', 'e7', 'e8'], d: '三路到齐后按权重合并。<b>注意这里是同步点</b>：最慢的一路决定整体耗时。' },
+    { n: ['diagnose'], e: ['e9', 'e10'], d: '合好的证据进模型，出根因与建议，然后走出口。' },
+    { n: ['end'], e: [], d: '收口。咨询类走的是右边那条：router → kb_search → answer → end，不经过 merge。' }
+  ];
+  let wi = 0;
+  function drawWF() {
+    $$('#wffig [data-n]').forEach(function (r) {
+      const id = r.getAttribute('data-n');
+      let cls = 'gn';
+      if (WSTEP[wi].n.indexOf(id) >= 0) cls += ' cur';
+      else if (WSTEP.slice(0, wi).some(function (s) { return s.n.indexOf(id) >= 0; })) cls += ' done';
+      r.setAttribute('class', cls);
+    });
+    $$('#wffig .ge').forEach(function (p) {
+      p.classList.remove('on');
+      if (WSTEP[wi].e.indexOf(p.id) >= 0) p.classList.add('on');
+    });
+    $('#wfN').textContent = wi + ' / ' + (WSTEP.length - 1);
+    $('#wfcap').innerHTML = '<span class="cap-k">' + WSTEP[wi].n.join(' + ') + '</span>' + WSTEP[wi].d;
+  }
+  $('#wfNext').addEventListener('click', function () { if (wi < WSTEP.length - 1) { wi++; drawWF(); } });
+  $('#wfReset').addEventListener('click', function () { wi = 0; drawWF(); });
+  $$('#wffig [data-n]').forEach(function (r) {
+    r.style.cursor = 'pointer';
+    r.addEventListener('click', function () {
+      $('#wfcap').innerHTML = '<span class="cap-k">' + r.getAttribute('data-n') + '</span>' + WF[r.getAttribute('data-n')];
     });
   });
+  drawWF();
 })();
 </script>
