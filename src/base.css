@@ -1006,3 +1006,8 @@ tr:last-child td { border-bottom: 0; }
 }
 .flow.clickable .fnode { cursor: pointer; transition: box-shadow .18s, transform .18s; }
 .flow.clickable .fnode:hover { box-shadow: 0 0 0 3px rgba(169,102,15,.14); }
+
+/* 结尾：古法 Agent 图 */
+.old-agent { margin: 16px 0; text-align: center; }
+.old-agent img { max-width: 340px; border: 1px solid var(--line); border-radius: 3px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+.old-agent figcaption { font-family: var(--mono); font-size: 11px; color: var(--text-3); margin-top: 9px; letter-spacing: .04em; }
