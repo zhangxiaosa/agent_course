@@ -60,11 +60,15 @@
 
 <h2>放回循环里看</h2>
 
-<p>把决策模型放回这条循环，它接管的是三处「选一个」：进来时选第一个动作，每次模型想动手前过一遍审批，收尾时判断是否真的做完。其余环节照旧——语言模型负责想和写，工具负责执行。</p>
+<p>决策模型不是挂在某一处，<b>它可以挂在循环里的任何一个节点上</b>——每个节点都对应一个「要不要、选哪个、算不算」的问题。区别只在于同一时间扣的是哪一道闸。下面这张图的每个节点都可以点，点开看那一处能做什么判断。</p>
 
 <div class="flow" id="flow11" style="height:340px"></div>
 
-<p class="cap-note">亮着的三个节点是决策模型的位置：<code>before_tool</code> 判断这条命令放不放、<code>after_model</code> 决定这一次是不是继续调工具、<code>after_agent</code> 决定收尾还是打回。</p>
+<div class="dec-ctx" id="decStage" style="margin-top:10px">
+  <b>点任意节点</b> · 八个节点各对应一类判断，同一个决策模型换个训练目标就能挂在不同的位置上。
+</div>
+
+<p class="cap-note">点节点看那一处要判什么；亮起的边是判断之后会影响的流向。模型调用和工具执行本身不是决策，它们是被判断的对象。</p>
 
 <script>
 (function () {
@@ -150,10 +154,60 @@
   sR.addEventListener('input', route);
   route();
 
-  /* ---------- 环形图 ---------- */
+  /* ---------- 环形图：每个节点都能点，点开看这一处能判什么 ---------- */
+  const STAGE = {
+    start: {
+      t: 'before_agent', edges: ['e_start'],
+      d: '任务进来的第一道判断：<b>这段输入能不能收</b>。是不是提示词覆盖、是不是夹了越权指令、意图是否清楚到可以开工。判不过就直接拒掉，不必先烧一次模型调用。'
+    },
+    b_model: {
+      t: 'before_model', edges: ['e_start', 'e_loop'],
+      d: '上模型之前的判断：<b>这份上下文够不够、贵不贵</b>。要不要压缩、哪几段可以合并、需不需要先检索一段补进来。压缩与合并决策放在这里，比让模型自己内心挣扎便宜。'
+    },
+    model: {
+      t: 'model_call', edges: ['e_bm'],
+      d: '这一步是<b>生成</b>，不是决策——写答案、写工具参数，本来就该语言模型做。它上游「用哪个模型、给多少预算」仍是一次选择，只是发生在调用之前。'
+    },
+    a_model: {
+      t: 'after_model', edges: ['e_m', 'e_exit'],
+      d: '模型说完之后的判断：<b>这段输出能不能用</b>。是不是空的、是不是前后矛盾、要不要重试；以及这一次是继续调工具，还是可以收尾。'
+    },
+    b_tool: {
+      t: 'before_tool', edges: ['e_am_bt'],
+      d: '动手之前的判断：<b>这条命令放不放</b>。给一个概率，高分放行、中间给人、低分拒掉；顺带判参数是否越界、是不是只读操作。'
+    },
+    tool: {
+      t: 'tool_call', edges: ['e_bt'],
+      d: '这一步是<b>执行</b>，同样不是决策。它能被判断的地方在外面：跑太久了要不要中断、输出是否已经够用。'
+    },
+    a_tool: {
+      t: 'after_tool', edges: ['e_t', 'e_loop'],
+      d: '拿到结果之后的判断：<b>这份结果值不值得往下走</b>。是不是空、是不是报错、要不要重试或转人工；以及直接回灌给模型，还是先裁剪加工一遍。'
+    },
+    end: {
+      t: 'after_agent', edges: ['e_exit'],
+      d: '收尾时的判断：<b>事情真的做完了吗</b>。拿最初的目标给结果打一个分，够了就结束，不够就把 feedback 打回去，让循环再转一圈。'
+    }
+  };
+
   const flow = new AgentFlow($('#flow11'), { nodes: STD_NODES, edges: STD_EDGES });
   addFlowArrows($('#flow11 svg'), flow.edgeEls);
-  flow.highlight(['b_tool', 'a_model', 'end'], ['e_am_bt', 'e_exit']);
-  flow.meta('decision · 3 处');
+  $('#flow11').classList.add('clickable');
+
+  const stageBox = $('#decStage');
+  const I0S = stageBox.innerHTML;
+  function pick(id) {
+    const st = STAGE[id];
+    if (!st) return;
+    flow.highlight([id], st.edges);
+    flow.meta('decision · ' + st.t);
+    stageBox.innerHTML = '<b>' + st.t + '</b> · ' + st.d;
+  }
+  Object.keys(STAGE).forEach(function (id) {
+    const el = flow.nodeEls[id];
+    if (el) el.addEventListener('click', function () { pick(id); });
+  });
+
+  pick('b_tool');
 })();
 </script>
