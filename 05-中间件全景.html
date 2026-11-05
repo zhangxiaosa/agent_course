@@ -958,6 +958,12 @@ tr:last-child td { border-bottom: 0; }
 .arw-poly.on { fill: var(--amber); }
 .stage .col-body { max-height: 336px; overflow-y: auto; }
 .loopband span { left: auto; right: 12px; }
+.ring-label {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+  font-family: var(--mono); font-size: 10px; letter-spacing: .05em; color: #8b95a3;
+  padding: 3px 9px; border: 1px dashed #dfe3e9; border-radius: 3px; background: #fff;
+  pointer-events: none;
+}
 
 </style>
 </head>
@@ -1063,6 +1069,38 @@ class AgentFlow {
     const m = $('.flow-meta', this.root);
     if (m) m.innerHTML = '';
   }
+}
+
+/* ---------- 给 flow 的边画箭头（viewBox 非等比缩放，按屏幕像素反算用户单位） ---------- */
+
+function addFlowArrows(svgEl, edgeEls, opts) {
+  const size = (opts && opts.size) || 9;
+  const map = {};
+  function draw() {
+    Array.from(svgEl.querySelectorAll('.arw-poly')).forEach((el) => el.remove());
+    const box = svgEl.getBoundingClientRect();
+    if (!box.width || !box.height) return;
+    const sx = box.width / 100, sy = box.height / 100;
+    Object.entries(edgeEls).forEach(([id, pathEl]) => {
+      const nums = (pathEl.getAttribute('d') || '').match(/-?\d+(?:\.\d+)?/g);
+      if (!nums || nums.length < 4) return;
+      const n = nums.map(Number);
+      const ex = n[n.length - 2], ey = n[n.length - 1];
+      const cx = n[n.length - 4], cy = n[n.length - 3];
+      const ang = Math.atan2((ey - cy) * sy, (ex - cx) * sx);
+      const L = size, HW = size * 0.36;
+      const bx = ex - Math.cos(ang) * L / sx, by = ey - Math.sin(ang) * L / sy;
+      const ox = -Math.sin(ang) * HW / sx, oy = Math.cos(ang) * HW / sy;
+      const poly = document.createElementNS(NS, 'polygon');
+      poly.setAttribute('points', `${ex},${ey} ${bx + ox},${by + oy} ${bx - ox},${by - oy}`);
+      poly.setAttribute('class', 'arw-poly');
+      svgEl.appendChild(poly);
+      map[id] = poly;
+    });
+  }
+  draw();
+  window.addEventListener('resize', draw);
+  return map;
 }
 
 /* 标准 8 节点跑道：上排模型链向右，下排工具链向左，左竖线回环 */
@@ -1306,12 +1344,14 @@ function bindSeg(selector, onChange) {
   <div class="col">
     <div class="col-h"><span>agent 生命周期 · 8 个钩子</span></div>
     <div class="col-body">
-      <div class="flow" id="flow" style="height:300px"></div>
+      <div class="flow" id="flow" style="height:360px">
+      <div class="ring-label">while (!done)</div>
+    </div>
     </div>
   </div>
 </div>
 
-<p>自上而下、再自下而上，走完一圈就是一轮。左边那条竖线是回环：<code>after_tool</code> 走完，回到 <code>before_model</code>，下一轮开始。<b>中间件能插的位置，只有这 8 个。</b></p>
+<p>沿圆环走一圈就是一轮：<code>before_agent</code> 开跑前进一次，<code>before_model</code> → <code>model_call</code> → <code>after_model</code>，需要动手就走 <code>before_tool</code> → <code>tool_call</code> → <code>after_tool</code>，然后回到 <code>before_model</code> 开始下一轮；不需要动手则由 <code>after_model</code> 直接交给 <code>after_agent</code> 收尾。<b>中间件能插的位置，只有这 8 个。</b></p>
 
 <h2>六个中间件 × 八个钩子</h2>
 
@@ -1366,8 +1406,28 @@ function bindSeg(selector, onChange) {
 
 <script>
 (function () {
-  new AgentFlow($('#flow'), { nodes: STD_NODES, edges: STD_EDGES });
-  $('#flow').querySelectorAll('.fnode').forEach(function () { });
+  const LIFE_NODES = [
+    { id: 'ba',    label: 'before_agent', x: 10, y: 12, k: 'hook' },
+    { id: 'bm',    label: 'before_model', x: 15, y: 46, k: 'hook' },
+    { id: 'model', label: 'model_call',   x: 30, y: 18, k: 'model' },
+    { id: 'am',    label: 'after_model',  x: 70, y: 18, k: 'hook' },
+    { id: 'bt',    label: 'before_tool',  x: 85, y: 46, k: 'hook' },
+    { id: 'tool',  label: 'tool_call',    x: 70, y: 78, k: 'tool' },
+    { id: 'at',    label: 'after_tool',   x: 30, y: 78, k: 'hook' },
+    { id: 'aa',    label: 'after_agent',  x: 88, y: 12, k: 'hook' }
+  ];
+  const LIFE_EDGES = [
+    { id: 'e_ba',    d: 'M9.5 16.5 C10.5 26, 11.5 34, 12.5 41.5' },
+    { id: 'e_bm',    d: 'M17.5 43 C22 35, 24.5 28, 27 22.5' },
+    { id: 'e_m',     d: 'M34 18 L65.6 18' },
+    { id: 'e_am',    d: 'M70.5 22.5 C74 30, 78 36, 81.5 41.5' },
+    { id: 'e_bt',    d: 'M85 50 C82 60, 76 68, 71.5 73.5' },
+    { id: 'e_t',     d: 'M66.5 78 L34.5 78' },
+    { id: 'e_loop',  d: 'M29 73.5 C25 66, 21 58, 18 50.5', loop: true },
+    { id: 'e_exit',  d: 'M73.5 15 C77 12.5, 81 11.5, 83.5 12' }
+  ];
+  const lifeFlow = new AgentFlow($('#flow'), { nodes: LIFE_NODES, edges: LIFE_EDGES });
+  addFlowArrows($('#flow svg'), lifeFlow.edgeEls);
 
   const HOOKS = [
     ['before_agent', '运行开始前'],

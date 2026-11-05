@@ -100,6 +100,38 @@ class AgentFlow {
   }
 }
 
+/* ---------- 给 flow 的边画箭头（viewBox 非等比缩放，按屏幕像素反算用户单位） ---------- */
+
+function addFlowArrows(svgEl, edgeEls, opts) {
+  const size = (opts && opts.size) || 9;
+  const map = {};
+  function draw() {
+    Array.from(svgEl.querySelectorAll('.arw-poly')).forEach((el) => el.remove());
+    const box = svgEl.getBoundingClientRect();
+    if (!box.width || !box.height) return;
+    const sx = box.width / 100, sy = box.height / 100;
+    Object.entries(edgeEls).forEach(([id, pathEl]) => {
+      const nums = (pathEl.getAttribute('d') || '').match(/-?\d+(?:\.\d+)?/g);
+      if (!nums || nums.length < 4) return;
+      const n = nums.map(Number);
+      const ex = n[n.length - 2], ey = n[n.length - 1];
+      const cx = n[n.length - 4], cy = n[n.length - 3];
+      const ang = Math.atan2((ey - cy) * sy, (ex - cx) * sx);
+      const L = size, HW = size * 0.36;
+      const bx = ex - Math.cos(ang) * L / sx, by = ey - Math.sin(ang) * L / sy;
+      const ox = -Math.sin(ang) * HW / sx, oy = Math.cos(ang) * HW / sy;
+      const poly = document.createElementNS(NS, 'polygon');
+      poly.setAttribute('points', `${ex},${ey} ${bx + ox},${by + oy} ${bx - ox},${by - oy}`);
+      poly.setAttribute('class', 'arw-poly');
+      svgEl.appendChild(poly);
+      map[id] = poly;
+    });
+  }
+  draw();
+  window.addEventListener('resize', draw);
+  return map;
+}
+
 /* 标准 8 节点跑道：上排模型链向右，下排工具链向左，左竖线回环 */
 const STD_NODES = [
   { id: 'start',     label: 'agent_start',  x: 50, y: 7,  k: 'io' },

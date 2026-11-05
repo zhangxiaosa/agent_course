@@ -949,3 +949,9 @@ tr:last-child td { border-bottom: 0; }
 .arw-poly.on { fill: var(--amber); }
 .stage .col-body { max-height: 336px; overflow-y: auto; }
 .loopband span { left: auto; right: 12px; }
+.ring-label {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+  font-family: var(--mono); font-size: 10px; letter-spacing: .05em; color: #8b95a3;
+  padding: 3px 9px; border: 1px dashed #dfe3e9; border-radius: 3px; background: #fff;
+  pointer-events: none;
+}
