@@ -954,6 +954,10 @@ tr:last-child td { border-bottom: 0; }
 }
 .swipe { display: none; font-family: var(--mono); font-size: 10.5px; color: var(--text-3); }
 @media (max-width: 760px) { .swipe { display: block; padding-top: 4px; } }
+.arw-poly { fill: #b9c2cd; }
+.arw-poly.on { fill: var(--amber); }
+.stage .col-body { max-height: 336px; overflow-y: auto; }
+.loopband span { left: auto; right: 12px; }
 
 </style>
 </head>
@@ -1356,7 +1360,7 @@ function bindSeg(selector, onChange) {
   { "role": "tool",      "tool_call_id": "c2", "content": "django==3.2.0\nrequests==2.19.0\n…" }
 ]</code></pre>
 
-<p>注意三件事，它们决定了后面所有章节：</p>
+<p>这份数组有三处特征值得注意：</p>
 
 <ul>
   <li><b>数组只增不减。</b>第 5 轮打的是 10 条消息，不是"当前需要的那两条"。这是上下文单调膨胀的根源。</li>
@@ -1382,15 +1386,15 @@ function bindSeg(selector, onChange) {
 
 <p>第 1 个出口最不可靠：模型完全可以在没查完的情况下给出一个像样的结论。这就是第 09 章 evaluator 中间件要解决的问题——不信任模型的自述，另派一个 judge 对着原始目标验收。</p>
 
-<h2>这个循环有三个问题</h2>
+<h2>这个循环有三个局限</h2>
 
-<p>环一旦能转起来，问题就从"能不能跑"变成"跑得贵不贵、稳不稳、对不对"。三个问题分别对应后面的三组中间件：</p>
+<p>循环能转起来之后，真正的问题从功能转向成本、稳定性与正确性。三个局限分别对应后面三组中间件：</p>
 
-<p><a href="06-记忆中间件.html"><b>① 上下文只增不减</b></a> —— 历史全集重放，第 30 轮时 prompt 里躺着一堆早已无用的目录列表。→ 上下文压缩、工具输出卸载。</p>
+<p><a href="06-记忆中间件.html"><b>① 上下文只增不减</b></a> —— 历史全集重放，第 30 轮时 prompt 里积压着大量早已无用的目录列表。<b>解决方法：</b>上下文压缩、工具输出卸载。</p>
 
-<p><a href="08-人工审批中间件.html"><b>② 参数直接进执行器</b></a> —— 模型生成 <code>rm -rf</code>，框架照单执行。→ before_tool 挂起，等人点头。</p>
+<p><a href="08-人工审批中间件.html"><b>② 参数直接进执行器</b></a> —— 模型生成 <code>rm -rf</code>，框架照单执行。<b>解决方法：</b>before_tool 挂起，等待人工确认后放行。</p>
 
-<p><a href="09-控制流中间件.html"><b>③ 结束是模型自己说的</b></a> —— <code>finish_reason=stop</code> 只代表"它不说话了"，不代表"活干完了"。→ after_agent 加一道验收，不过就跳回去继续。</p>
+<p><a href="09-控制流中间件.html"><b>③ 结束是模型自己说的</b></a> —— <code>finish_reason=stop</code> 只代表模型认为它做完了，不代表任务真的做完了。<b>解决方法：</b>after_agent 加一道验收，不通过就跳回 before_model 继续。</p>
 
 <p>这三个问题都不是靠改 prompt 能解决的，只能靠在循环的节点上<b>插入可复用的拦截层</b>。那就是第 05 章的主题。</p>
 
@@ -1406,12 +1410,41 @@ function bindSeg(selector, onChange) {
       { id: 'end',   label: 'agent_end',   x: 50, y: 86, k: 'done' }
     ],
     edges: [
-      { id: 'e_in',  d: 'M50 10 L29 35' },
-      { id: 'e_mt',  d: 'M37 33 L63 33' },
-      { id: 'e_tm',  d: 'M63 49 L37 49' },
-      { id: 'e_out', d: 'M29 45 L50 83' }
+      { id: 'e_in',  d: 'M50 13 C43 22, 33 27, 30 37' },
+      { id: 'e_mt',  d: 'M40 41 L62 41' },
+      { id: 'e_tm',  d: 'M60 48 L38 48' },
+      { id: 'e_out', d: 'M30 47 C36 62, 44 74, 49 82' }
     ]
   });
+
+  /* 边上的箭头：viewBox 是非等比缩放，按屏幕像素反算用户单位，保证看起来一样大 */
+  const svgEl = $('#flow svg');
+  svgEl.setAttribute('class', 'flow-svg');
+  const arrowMap = {};
+  function drawArrows() {
+    $$('.arw-poly', svgEl).forEach((el) => el.remove());
+    const box = svgEl.getBoundingClientRect();
+    const sx = box.width / 100, sy = box.height / 100;
+    Object.entries(flow.edgeEls).forEach(([id, pathEl]) => {
+      const nums = (pathEl.getAttribute('d').match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
+      if (nums.length < 4) return;
+      const ex = nums[nums.length - 2], ey = nums[nums.length - 1];
+      const cx = nums[nums.length - 4], cy = nums[nums.length - 3];
+      const ang = Math.atan2((ey - cy) * sy, (ex - cx) * sx);
+      const L = 9, HW = 3.2;
+      const bx = ex - Math.cos(ang) * L / sx, by = ey - Math.sin(ang) * L / sy;
+      const ox = -Math.sin(ang) * HW / sx, oy = Math.cos(ang) * HW / sy;
+      const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+      poly.setAttribute('points',
+        `${ex},${ey} ${bx + ox},${by + oy} ${bx - ox},${by - oy}`);
+      poly.setAttribute('class', 'arw-poly');
+      poly.dataset.edge = id;
+      svgEl.appendChild(poly);
+      arrowMap[id] = poly;
+    });
+  }
+  drawArrows();
+  window.addEventListener('resize', drawArrows);
 
   const sp = new StatePanel($('#state'));
   const log = new LogPanel($('#log'));
@@ -1509,6 +1542,10 @@ function bindSeg(selector, onChange) {
   function apply(s) {
     flow.highlight(s.node ? [s.node] : [], s.edges || []);
     flow.meta(s.meta || '');
+    const onEdges = s.edges || [];
+    Object.entries(arrowMap).forEach(([id, poly]) => {
+      poly.setAttribute('class', 'arw-poly' + (onEdges.indexOf(id) >= 0 ? ' on' : ''));
+    });
     if (s.state) sp.render(s.state);
     if (s.msgs) s.msgs.forEach((m) => log.push(m.r, m.h));
     cap.innerHTML = s.cap;
