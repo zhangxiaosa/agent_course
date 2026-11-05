@@ -178,6 +178,7 @@ __PAGER__
 (function () {
   /* ================= ① 压缩 ================= */
   const flow1 = new AgentFlow($('#flow1'), { nodes: STD_NODES, edges: STD_EDGES });
+  addFlowArrows($('#flow1 svg'), flow1.edgeEls);
   const sp1 = new StatePanel($('#state1'));
   const log1 = new LogPanel($('#log1'));
   const cap1 = $('#cap1');
@@ -253,6 +254,7 @@ __PAGER__
 
   /* ================= ② 卸载 ================= */
   const flow2 = new AgentFlow($('#flow2'), { nodes: STD_NODES, edges: STD_EDGES });
+  addFlowArrows($('#flow2 svg'), flow2.edgeEls);
   const sp2 = new StatePanel($('#state2'));
   const log2 = new LogPanel($('#log2'));
   const cap2 = $('#cap2');

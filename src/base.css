@@ -238,7 +238,7 @@ tr:last-child td { border-bottom: 0; }
 
 .flow {
   position: relative;
-  height: 268px;
+  height: 340px;
   background:
     radial-gradient(120% 90% at 50% 0%, rgba(37,99,168,0.033), transparent 60%),
     var(--bg-2);
@@ -970,3 +970,6 @@ tr:last-child td { border-bottom: 0; }
 /* 终端框：容器自身不要 pre-wrap，否则标签之间的换行会变成空行 */
 .term { white-space: normal; }
 .term pre { border: 0; background: none; padding: 0; border-radius: 0; }
+
+/* 窄容器里的流程图：字号与内边距收一档 */
+.flow.narrow .fnode { font-size: 11px; padding: 6px 8px; }

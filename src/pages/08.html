@@ -100,6 +100,7 @@ __PAGER__
 <script>
 (function () {
   const flow = new AgentFlow($('#flow'), { nodes: STD_NODES, edges: STD_EDGES });
+  addFlowArrows($('#flow svg'), flow.edgeEls);
   const sp = new StatePanel($('#state'));
   const log = new LogPanel($('#log'));
   const cap = $('#cap');

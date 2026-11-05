@@ -20,6 +20,10 @@ class AgentFlow {
     this.nodeEls = {};
     this.edgeEls = {};
     this._build(nodes, edges);
+    if (edges.some((e) => e.from && e.to)) {
+      snapFlowEdges(root, nodes, edges);
+      window.addEventListener('resize', () => snapFlowEdges(root, nodes, edges));
+    }
   }
 
   _build(nodes, edges) {
@@ -36,12 +40,14 @@ class AgentFlow {
     });
     this.root.appendChild(svg);
 
+    const narrow = this.root.clientWidth > 0 && this.root.clientWidth < 720;
+    if (narrow) this.root.classList.add('narrow');
     nodes.forEach((n) => {
       const el = document.createElement('div');
       el.className = 'fnode';
       el.dataset.k = n.k || 'io';
       el.style.left = n.x + '%';
-      el.style.top = n.y + '%';
+      el.style.top = (narrow ? ({ start: 6, end: 6, model: 23, a_model: 23 }[n.id] || n.y) : n.y) + '%';
       el.textContent = n.label;
       if (n.tip) el.title = n.tip;
       this.root.appendChild(el);
@@ -132,29 +138,69 @@ function addFlowArrows(svgEl, edgeEls, opts) {
   return map;
 }
 
-/* 标准 8 节点跑道：上排模型链向右，下排工具链向左，左竖线回环 */
+/* 标准 8 节点闭环：与「中间件全景」同一张图，6 个节点围一圈，两个 agent 钩子在两侧上方 */
 const STD_NODES = [
-  { id: 'start',     label: 'agent_start',  x: 50, y: 7,  k: 'io' },
-  { id: 'b_model',   label: 'before_model', x: 11, y: 30, k: 'hook' },
-  { id: 'model',     label: 'model_call',   x: 50, y: 30, k: 'model' },
-  { id: 'a_model',   label: 'after_model',  x: 89, y: 30, k: 'hook' },
-  { id: 'b_tool',    label: 'before_tool',  x: 89, y: 66, k: 'hook' },
-  { id: 'tool',      label: 'tool_call',    x: 50, y: 66, k: 'tool' },
-  { id: 'a_tool',    label: 'after_tool',   x: 11, y: 66, k: 'hook' },
-  { id: 'end',       label: 'agent_end',    x: 50, y: 93, k: 'done' },
+  { id: 'start',   label: 'before_agent', x: 10, y: 12, k: 'hook' },
+  { id: 'b_model', label: 'before_model', x: 15, y: 46, k: 'hook' },
+  { id: 'model',   label: 'model_call',   x: 30, y: 18, k: 'model' },
+  { id: 'a_model', label: 'after_model',  x: 70, y: 18, k: 'hook' },
+  { id: 'b_tool',  label: 'before_tool',  x: 85, y: 46, k: 'hook' },
+  { id: 'tool',    label: 'tool_call',    x: 70, y: 78, k: 'tool' },
+  { id: 'a_tool',  label: 'after_tool',   x: 30, y: 78, k: 'hook' },
+  { id: 'end',     label: 'after_agent',  x: 88, y: 12, k: 'done' },
 ];
 
 const STD_EDGES = [
-  { id: 'e_start',  d: 'M50 7 L11 30' },
-  { id: 'e_bm',     d: 'M11 30 L50 30' },
-  { id: 'e_m',      d: 'M50 30 L89 30' },
-  { id: 'e_am_bt',  d: 'M89 30 L89 66' },
-  { id: 'e_bt',     d: 'M89 66 L50 66' },
-  { id: 'e_t',      d: 'M50 66 L11 66' },
-  { id: 'e_loop',   d: 'M11 66 L11 30', loop: true },
-  { id: 'e_exit',   d: 'M11 66 C11 93, 34 93, 50 93' },
-  { id: 'e_finish', d: 'M89 30 C89 78, 78 93, 50 93' },
+  { id: 'e_start',  from: 'start',   to: 'b_model', d: 'M10 15 C11 26, 12 35, 13 42' },
+  { id: 'e_bm',     from: 'b_model', to: 'model',   d: 'M17 43 C22 35, 24.5 28, 27 22.5' },
+  { id: 'e_m',      from: 'model',   to: 'a_model', d: 'M34 18 L65.6 18' },
+  { id: 'e_am_bt',  from: 'a_model', to: 'b_tool',  d: 'M70.5 22.5 C74 30, 78 36, 81.5 41.5' },
+  { id: 'e_bt',     from: 'b_tool',  to: 'tool',    d: 'M85 50 C82 60, 76 68, 71.5 73.5' },
+  { id: 'e_t',      from: 'tool',    to: 'a_tool',  d: 'M66.5 78 L34.5 78' },
+  { id: 'e_loop',   from: 'a_tool',  to: 'b_model', d: 'M29 73.5 C25 66, 21 58, 18 50.5', loop: true },
+  { id: 'e_exit',   from: 'a_model', to: 'end',     d: 'M73.5 15 C77 12.5, 81 11.5, 83.5 12' },
 ];
+
+/* 端点吸附：按节点框的实际像素把边的首尾拉到框边，字号变了也不会缩进框里 */
+function snapFlowEdges(root, nodes, edges) {
+  const fr = root.getBoundingClientRect();
+  if (!fr.width) return;
+  const box = {};
+  const els = root.querySelectorAll('.fnode');
+  nodes.forEach((n, i) => {
+    const el = els[i];
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    box[n.id] = {
+      cx: (r.left + r.width / 2 - fr.left) / fr.width * 100,
+      cy: (r.top + r.height / 2 - fr.top) / fr.height * 100,
+      hw: r.width / 2 / fr.width * 100,
+      hh: r.height / 2 / fr.height * 100,
+    };
+  });
+  function hit(c, tx, ty) {
+    const dx = tx - c.cx, dy = ty - c.cy;
+    if (!dx && !dy) return [c.cx, c.cy];
+    const t = Math.min(Math.abs(dx) ? c.hw / Math.abs(dx) : 1e9, Math.abs(dy) ? c.hh / Math.abs(dy) : 1e9);
+    return [c.cx + dx * t, c.cy + dy * t];
+  }
+  edges.forEach((e, i) => {
+    if (!e.from || !e.to) return;
+    const path = root.querySelectorAll('svg .edge')[i];
+    const a = box[e.from], b = box[e.to];
+    if (!path || !a || !b) return;
+    const nums = (path.getAttribute('d') || '').match(/-?\d+(?:\.\d+)?/g);
+    if (!nums || nums.length < 4) return;
+    const n = nums.map(Number);
+    const ctrl = n.slice(2, n.length - 2);
+    const sPt = hit(a, ctrl.length ? ctrl[0] : b.cx, ctrl.length ? ctrl[1] : b.cy);
+    const q = n.length >= 6 ? [n[n.length - 4], n[n.length - 3]] : [a.cx, a.cy];
+    const tPt = hit(b, q[0], q[1]);
+    path.setAttribute('d', ctrl.length
+      ? 'M ' + sPt[0].toFixed(2) + ' ' + sPt[1].toFixed(2) + ' C ' + ctrl.join(' ') + ', ' + tPt[0].toFixed(2) + ' ' + tPt[1].toFixed(2)
+      : 'M ' + sPt[0].toFixed(2) + ' ' + sPt[1].toFixed(2) + ' L ' + tPt[0].toFixed(2) + ' ' + tPt[1].toFixed(2));
+  });
+}
 
 /* ---------- checkpoint 面板 ---------- */
 

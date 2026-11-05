@@ -127,6 +127,7 @@ __PAGER__
 (function () {
   /* ---------- ① 重试 ---------- */
   const flow1 = new AgentFlow($('#flow1'), { nodes: STD_NODES, edges: STD_EDGES });
+  addFlowArrows($('#flow1 svg'), flow1.edgeEls);
   const log1 = new LogPanel($('#log1'));
   const cap1 = $('#cap1');
   const rf1 = $('#rf1');
@@ -174,28 +175,29 @@ __PAGER__
 
   /* ---------- ② 评审 ---------- */
   const flow2 = new AgentFlow($('#flow2'), { nodes: STD_NODES, edges: STD_EDGES });
+  addFlowArrows($('#flow2 svg'), flow2.edgeEls);
   const log2 = new LogPanel($('#log2'));
   const cap2 = $('#cap2');
   const I2 = cap2.innerHTML;
 
   const E = [
     {
-      node: ['model', 'a_model', 'end'], edges: ['e_start', 'e_bm', 'e_m', 'e_finish'],
+      node: ['model', 'a_model', 'end'], edges: ['e_start', 'e_bm', 'e_m', 'e_exit'],
       cap: ['agent 说完成了', '模型 <code>finish_reason=stop</code>，输出"已修复 django 与 requests 两处高危漏洞"。<b>从它的视角，任务结束了。</b>'],
       msg: ['assistant', '已完成。共修复 2 个高危漏洞：<br>· django 3.2.18 → 4.1（CVE-2021-45115）<br>· requests 2.28.1 → 2.31.0（CVE-2018-18074）']
     },
     {
-      node: ['end'], edges: ['e_finish'],
+      node: ['end'], edges: ['e_exit'],
       cap: ['after_agent · judge 介入', 'judge 拿到的是<b>最初那句 goal</b>，不是模型自述的结论："找出所有带高危漏洞的包"。它逐个核对：<code>requirements.txt</code> 里有 3 个高危包，结果只覆盖了 2 个。<b>不通过。</b>'],
       msg: ['judge', '<span style="color:var(--red)">FAIL</span> · 覆盖度 2/3<br>遗漏：pyyaml 5.4.1 → CVE-2020-14343（任意代码执行）']
     },
     {
-      node: ['end'], edges: ['e_finish'],
+      node: ['end'], edges: ['e_exit'],
       cap: ['feedback 插回 messages', 'judge 的结论作为一条消息写进上下文。<b>它必须指明缺什么、依据是什么</b>——只说"不通过"，模型下一轮很可能原地重说一遍。'],
       msg: ['judge', 'goal 要求覆盖所有高危包。当前只处理了 2 个，pyyaml 的 CVE-2020-14343 未修复。请继续，不要重复已完成的。']
     },
     {
-      node: ['model'], edges: ['e_finish', 'e_loop', 'e_bm', 'e_m'],
+      node: ['model'], edges: ['e_exit', 'e_loop', 'e_bm', 'e_m'],
       cap: ['jump to before_model', '<b>循环被重新拉开</b>。注意 messages 一条没删——模型接着原有的上下文继续，不需要重读一遍依赖文件。'],
       msg: ['system', 'after_agent: 未达标 → <b>jump to before_model</b> · eval #2']
     },
@@ -205,7 +207,7 @@ __PAGER__
       msg: ['tool', 'search_cve({"q":"pyyaml 5.4.1"})<br>→ CVE-2020-14343 · 9.8 critical']
     },
     {
-      node: ['end'], edges: ['e_loop', 'e_bm', 'e_finish'],
+      node: ['end'], edges: ['e_loop', 'e_bm', 'e_exit'],
       cap: ['再评审 · 通过', 'judge 第二次核对：3/3 覆盖，每条都给了版本与补丁。<b>这才是真正的 agent_end。</b>'],
       msg: ['judge', '<span style="color:var(--green)">PASS</span> · 覆盖度 3/3<br>任务达成，允许结束。']
     }

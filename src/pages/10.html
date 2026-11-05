@@ -6,7 +6,7 @@
 
 <h2>先看一次真实的流</h2>
 
-<p>左边是事件源（agent loop 的节点），右边是前端渲染出来的界面。中间没有任何"批量刷新"——<b>左边冒出一个字符，右边同一时刻就出现同一个字符</b>，每个事件也同步写进下方的事件流。</p>
+<p>左边是事件源（agent loop 的节点），右边是前端渲染出来的界面。中间没有任何"批量刷新"——<b>左边冒出一个字符，右边同一时刻就出现同一个字符</b>，每个事件也同步写进下方的事件流。嫌逐字慢就按<b>下一个阶段</b>，它直接把当前这次模型或工具调用跑完。</p>
 
 <div class="sx">
   <div class="col">
@@ -35,6 +35,9 @@
 
 <div class="bar">
   <button class="btn" data-v="primary" id="next10">下一步</button>
+  <button class="btn" data-v="ghost" id="stage10">下一个阶段</button>
+  <button class="btn" data-v="ghost" id="play10">播放</button>
+  <button class="btn" data-v="ghost" id="spd10">1×</button>
   <button class="btn" data-v="ghost" id="reset10">重置</button>
   <span class="step-no" id="clock">00:00.0</span>
 </div>
@@ -297,8 +300,44 @@ __PAGER__
     $('#next10').disabled = false;
   }
 
-  $('#next10').addEventListener('click', next);
-  $('#reset10').addEventListener('click', reset);
+  let playing = false, timer = null, speed = 1;
+  const btnPlay = $('#play10'), btnSpd = $('#spd10');
+
+  /* 直接跑完当前这一段：推进到下一个生命周期事件为止 */
+  function nextStage() {
+    if (done) return;
+    setPlay(false);
+    let k = idx;
+    do { k += 1; } while (k < STEPS.length && STEPS[k].kind !== 'life');
+    if (k >= STEPS.length) k = STEPS.length - 1;
+    while (idx < k) { idx += 1; apply(STEPS[idx]); }
+    if (idx === STEPS.length - 1) { done = true; $('#next10').disabled = true; }
+  }
+
+  function setPlay(on) {
+    playing = on;
+    btnPlay.textContent = on ? '暂停' : '继续';
+    btnPlay.dataset.v = on ? 'primary' : 'ghost';
+    clearTimeout(timer);
+    if (on) tick();
+  }
+
+  function tick() {
+    if (!playing) return;
+    next();
+    if (done) { setPlay(false); return; }
+    const st = STEPS[idx];
+    timer = setTimeout(tick, (st && st.kind === 'char' ? 80 : 420) / speed);
+  }
+
+  $('#next10').addEventListener('click', function () { setPlay(false); next(); });
+  $('#stage10').addEventListener('click', nextStage);
+  $('#play10').addEventListener('click', function () { setPlay(!playing); });
+  $('#spd10').addEventListener('click', function () {
+    speed = speed === 1 ? 2 : 1;
+    btnSpd.textContent = speed + '×';
+  });
+  $('#reset10').addEventListener('click', function () { setPlay(false); reset(); });
   reset();
 })();
 </script>
