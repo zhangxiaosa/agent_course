@@ -1263,7 +1263,7 @@ function bindSeg(selector, onChange) {
     </div>
     <div class="tl-item" data-v="m2">
       <span class="tl-dot"></span>
-      <span class="tl-when">2023-03-14 → 06-13</span>
+      <span class="tl-when">2023 春</span>
       <span class="tl-name">GPT-4 · function calling</span>
       <span class="tl-sub">从输出文字，到输出给程序消费的参数</span>
     </div>
@@ -1346,8 +1346,8 @@ function bindSeg(selector, onChange) {
       caps: [0, 1]
     },
     m2: {
-      no: '02 · 2023-03-14 → 06-13', title: 'GPT-4 与 function calling',
-      p: 'GPT-4 于 2023-03-14 发布。function calling 不在发布日，它随 Chat Completions API 在 2023-06-13 上线（<code>gpt-4-0613</code> / <code>gpt-3.5-turbo-0613</code>）。两件事常被并成一句「GPT-4 引入了 function call」，实际隔了三个月。',
+      no: '02 · 2023', title: 'GPT-4 与 function calling',
+      p: 'GPT-4 于 2023 年 3 月发布。此后不久，同一个模型系列上开始有了 function calling：模型第一次把「说什么」和「做什么」分开——文字给人看，参数给程序用。',
       points: [
         ['质变在哪', '模型开始生成<b>给程序消费</b>的 JSON，而不是给人读的文字。它必须读懂工具的 schema，把自然语言意图映射成合法参数。'],
         ['代价', '会幻觉出不存在的函数名，会漏必填字段，会把字符串塞进数字字段。所以每一层工具调用都要 schema 校验。'],
