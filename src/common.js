@@ -40,7 +40,7 @@ class AgentFlow {
     });
     this.root.appendChild(svg);
 
-    const narrow = this.root.clientWidth > 0 && this.root.clientWidth < 720;
+    const narrow = nodes.length === 8 && this.root.clientWidth > 0 && this.root.clientWidth < 720;
     if (narrow) this.root.classList.add('narrow');
     nodes.forEach((n) => {
       const el = document.createElement('div');
