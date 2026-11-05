@@ -913,6 +913,17 @@ tr:last-child td { border-bottom: 0; }
 .cd { background: #fff; border-color: #c9cfd8; color: #2a3441; }
 .chain .cd .cs { color: #6b7482; }
 
+/* ---------- MCP 组合爆炸对照图 ---------- */
+
+.mcpfig .col-body { padding: 10px 12px; overflow: visible; }
+.mcpfig svg { display: block; width: 100%; height: auto; }
+.mcpfig .bx   { fill: #fff; stroke: #c9cfd8; stroke-width: 1; }
+.mcpfig .bt   { font-family: var(--mono); font-size: 9.5px; fill: #2a3441; }
+.mcpfig .ln   { stroke: #c0c7d1; stroke-width: 1; fill: none; }
+.mcpfig .bus  { fill: #faf1e4; stroke: #d8bd93; stroke-width: 1; }
+.mcpfig .busTx { font-family: var(--mono); font-size: 9.5px; fill: #8a5310; }
+.mcpfig .muted { font-family: var(--mono); font-size: 9.5px; fill: #6b7482; }
+
 </style>
 </head>
 <body>
@@ -1254,25 +1265,25 @@ function bindSeg(selector, onChange) {
 
 <div class="mrow">
   <div class="mcard" data-c="model">
-    <span class="mc-no">01 · 2023-06-13</span>
+    <span class="mc-no">01 · 2023</span>
     <span class="mc-t">function calling</span>
     <span class="mc-d">模型输出 <code>name + arguments</code>，宿主自己实现路由和校验。手装上了，但每接一个工具都要写一遍胶水。</span>
   </div>
   <div class="mcard" data-c="tool">
-    <span class="mc-no">02 · 2024-11-25</span>
+    <span class="mc-no">02 · 2024-11</span>
     <span class="mc-t">MCP（Model Context Protocol）</span>
     <span class="mc-d">Anthropic 发布的开放协议。它标准化的不是模型输出，而是<b>宿主和工具服务器之间</b>的接口。工具终于可以跨应用复用。</span>
   </div>
   <div class="mcard" data-c="hook">
-    <span class="mc-no">03 · 2024-02 → 2025</span>
+    <span class="mc-no">03 · 2024 起</span>
     <span class="mc-t">code-as-action</span>
     <span class="mc-d">模型不再拼参数，直接写一段可执行代码。动作空间从"调用哪个函数"变成"程序能表达的一切"。还不是共识标准，但方向已经清楚。</span>
   </div>
 </div>
 
-<h2>同一个需求，三张脸</h2>
+<h2>同一个需求的三个阶段</h2>
 
-<p>需求很简单：<b>读 <code>app.py</code>，数一下有多少行</b>。下面切换三个协议，看模型实际吐出来的东西差多少。</p>
+<p>需求很简单：<b>读 <code>app.py</code>，数一下有多少行</b>。下面按三个阶段切换，看模型实际吐出来的东西差多少。</p>
 
 <div class="seg" id="seg">
   <button class="seg-btn" data-v="fc" aria-selected="true">function calling</button>
@@ -1297,20 +1308,90 @@ function bindSeg(selector, onChange) {
 
 <p>这是最容易被误解的一点：<b>MCP 没有改变模型的输出格式</b>。模型那边仍然是 <code>tool_use</code> 块——和 function calling 时代长得一样。MCP 标准化的是另一条边：<b>工具定义怎么被发现、怎么被调用、结果怎么回来</b>。</p>
 
-<pre><code>没有 MCP：                         有 MCP：
-┌────────┐                        ┌────────┐
-│  宿主   │─── 自己写的适配层 ───┐   │  宿主   │── MCP Client ──┐
-└────────┘   × N 个工具         │   └────────┘                │
-                                ↓                              ↓
-                          ┌──────────┐                  ┌─────────────┐
-                          │ 各家工具  │                  │ MCP Server  │ × N
-                          └──────────┘                  └─────────────┘</code></pre>
+<div class="duo mcpfig">
+  <div class="col">
+    <div class="col-h"><span>没有标准：每个宿主自己适配每件工具</span></div>
+    <div class="col-body">
+      <svg viewBox="0 0 340 300" role="img" aria-label="没有 MCP 时，三个宿主与四件工具各自适配">
+        <rect class="bx" x="16" y="6" width="84" height="26" rx="2"></rect>
+        <text class="bt" x="58" y="23" text-anchor="middle">Claude</text>
+        <rect class="bx" x="128" y="6" width="84" height="26" rx="2"></rect>
+        <text class="bt" x="170" y="23" text-anchor="middle">Cursor</text>
+        <rect class="bx" x="240" y="6" width="84" height="26" rx="2"></rect>
+        <text class="bt" x="282" y="23" text-anchor="middle">VS Code</text>
+
+        <path class="ln" d="M58 32 C58 110, 40 170, 40 250"></path>
+        <path class="ln" d="M58 32 C58 110, 125 170, 125 250"></path>
+        <path class="ln" d="M58 32 C58 110, 210 170, 210 250"></path>
+        <path class="ln" d="M58 32 C58 110, 295 170, 295 250"></path>
+        <path class="ln" d="M170 32 C170 110, 40 170, 40 250"></path>
+        <path class="ln" d="M170 32 C170 110, 125 170, 125 250"></path>
+        <path class="ln" d="M170 32 C170 110, 210 170, 210 250"></path>
+        <path class="ln" d="M170 32 C170 110, 295 170, 295 250"></path>
+        <path class="ln" d="M282 32 C282 110, 40 170, 40 250"></path>
+        <path class="ln" d="M282 32 C282 110, 125 170, 125 250"></path>
+        <path class="ln" d="M282 32 C282 110, 210 170, 210 250"></path>
+        <path class="ln" d="M282 32 C282 110, 295 170, 295 250"></path>
+
+        <rect class="bx" x="5" y="250" width="70" height="24" rx="2"></rect>
+        <text class="bt" x="40" y="266" text-anchor="middle">filesystem</text>
+        <rect class="bx" x="90" y="250" width="70" height="24" rx="2"></rect>
+        <text class="bt" x="125" y="266" text-anchor="middle">git</text>
+        <rect class="bx" x="175" y="250" width="70" height="24" rx="2"></rect>
+        <text class="bt" x="210" y="266" text-anchor="middle">shell</text>
+        <rect class="bx" x="260" y="250" width="70" height="24" rx="2"></rect>
+        <text class="bt" x="295" y="266" text-anchor="middle">postgres</text>
+
+        <text class="muted" x="170" y="292" text-anchor="middle">3 × 4 = 12 套适配</text>
+      </svg>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="col-h"><span>有 MCP：中间隔一层协议</span></div>
+    <div class="col-body">
+      <svg viewBox="0 0 340 300" role="img" aria-label="有 MCP 时，宿主只接协议，工具只暴露 server">
+        <rect class="bx" x="16" y="6" width="84" height="26" rx="2"></rect>
+        <text class="bt" x="58" y="23" text-anchor="middle">Claude</text>
+        <rect class="bx" x="128" y="6" width="84" height="26" rx="2"></rect>
+        <text class="bt" x="170" y="23" text-anchor="middle">Cursor</text>
+        <rect class="bx" x="240" y="6" width="84" height="26" rx="2"></rect>
+        <text class="bt" x="282" y="23" text-anchor="middle">VS Code</text>
+
+        <line class="ln" x1="58" y1="32" x2="58" y2="138"></line>
+        <line class="ln" x1="170" y1="32" x2="170" y2="138"></line>
+        <line class="ln" x1="282" y1="32" x2="282" y2="138"></line>
+
+        <rect class="bus" x="8" y="138" width="324" height="24" rx="2"></rect>
+        <text class="busTx" x="170" y="154" text-anchor="middle">MCP · JSON-RPC 2.0</text>
+
+        <line class="ln" x1="40" y1="162" x2="40" y2="250"></line>
+        <line class="ln" x1="125" y1="162" x2="125" y2="250"></line>
+        <line class="ln" x1="210" y1="162" x2="210" y2="250"></line>
+        <line class="ln" x1="295" y1="162" x2="295" y2="250"></line>
+
+        <rect class="bx" x="5" y="250" width="70" height="24" rx="2"></rect>
+        <text class="bt" x="40" y="266" text-anchor="middle">filesystem</text>
+        <rect class="bx" x="90" y="250" width="70" height="24" rx="2"></rect>
+        <text class="bt" x="125" y="266" text-anchor="middle">git</text>
+        <rect class="bx" x="175" y="250" width="70" height="24" rx="2"></rect>
+        <text class="bt" x="210" y="266" text-anchor="middle">shell</text>
+        <rect class="bx" x="260" y="250" width="70" height="24" rx="2"></rect>
+        <text class="bt" x="295" y="266" text-anchor="middle">postgres</text>
+
+        <text class="muted" x="170" y="292" text-anchor="middle">3 + 4 = 7 条连接</text>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<div class="caption">左边是 3 个宿主 × 4 件工具 = 12 套适配，工具换一版就得重写一遍；右边每个宿主只接协议，每件工具只暴露一个 server，总量降到 3 + 4 = 7。中间那一层不生产能力，它只是把组合爆炸换成了加法。</div>
 
 <p>它用 JSON-RPC 2.0 定义了三个原语：<code>tools</code>（可调用的动作）、<code>resources</code>（可读的数据）、<code>prompts</code>（可复用的模板）。传输层可以是 stdio，也可以是 HTTP。<b>于是"写一次工具，给所有客户端用"第一次成为可能</b>——这才是它被称为里程碑的原因：不是技术难度，是把生态的边际成本打下来了。</p>
 
-<h2>第三站为什么是 code-as-action</h2>
+<h2>第三个阶段为什么是 code-as-action</h2>
 
-<p>前两站都在优化"参数怎么传"，但它们共享同一个天花板：<b>一次工具调用只能表达一次动作</b>。模型想做"读文件、过滤、求和"三件事，就得来回三轮。</p>
+<p>前两个阶段都在优化「参数怎么传」，但它们共享同一个天花板：<b>一次工具调用只能表达一次动作</b>。模型想做"读文件、过滤、求和"三件事，就得来回三轮。</p>
 
 <p>code-as-action 把这个天花板拆了。CodeAct（2024-02）的核心主张是：把动作空间从"一组函数签名"换成"一段可执行代码"。模型写 <code>sum(1 for l in open('f') if 'error' in l)</code>，一次就完成了读取、过滤、聚合三件事。</p>
 

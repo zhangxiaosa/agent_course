@@ -903,3 +903,14 @@ tr:last-child td { border-bottom: 0; }
 
 .cd { background: #fff; border-color: #c9cfd8; color: #2a3441; }
 .chain .cd .cs { color: #6b7482; }
+
+/* ---------- MCP 组合爆炸对照图 ---------- */
+
+.mcpfig .col-body { padding: 10px 12px; overflow: visible; }
+.mcpfig svg { display: block; width: 100%; height: auto; }
+.mcpfig .bx   { fill: #fff; stroke: #c9cfd8; stroke-width: 1; }
+.mcpfig .bt   { font-family: var(--mono); font-size: 9.5px; fill: #2a3441; }
+.mcpfig .ln   { stroke: #c0c7d1; stroke-width: 1; fill: none; }
+.mcpfig .bus  { fill: #faf1e4; stroke: #d8bd93; stroke-width: 1; }
+.mcpfig .busTx { font-family: var(--mono); font-size: 9.5px; fill: #8a5310; }
+.mcpfig .muted { font-family: var(--mono); font-size: 9.5px; fill: #6b7482; }
