@@ -966,3 +966,7 @@ tr:last-child td { border-bottom: 0; }
 .fnode[data-k="done"]  { background: #e8f5ec; border-color: #96c9a4; color: #27673f; }
 .fnode[data-k="io"]    { background: #f2f4f7; border-color: #b3bcc8; color: #37424f; }
 .fnode.on { background: #fff; }
+
+/* 终端框：容器自身不要 pre-wrap，否则标签之间的换行会变成空行 */
+.term { white-space: normal; }
+.term pre { border: 0; background: none; padding: 0; border-radius: 0; }

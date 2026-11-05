@@ -12,15 +12,7 @@
   <div class="col">
     <div class="col-h"><span>agent loop · 事件源</span><span id="rf10">idle</span></div>
     <div class="col-body">
-      <div class="rail" id="rail">
-        <div class="rail-node" data-k="io" data-n="start"><span>agent_start</span><span class="rn-k">before_agent</span></div>
-        <div class="rail-wire" data-w="w1"></div>
-        <div class="rail-node" data-k="model" data-n="model"><span>model_call</span><span class="rn-k">llm</span></div>
-        <div class="rail-wire" data-w="w2"></div>
-        <div class="rail-node" data-k="tool" data-n="tool"><span>tool_call</span><span class="rn-k">shell</span></div>
-        <div class="rail-wire" data-w="w3"></div>
-        <div class="rail-node" data-k="done" data-n="end"><span>agent_end</span><span class="rn-k">after_agent</span></div>
-      </div>
+      <div class="flow" id="flow10" style="height:320px"></div>
     </div>
     <div class="emit"><span class="emit-k">EMIT</span><span class="emit-c" id="chip">·</span><span class="emit-d" id="emitMeta">等待开始</span></div>
   </div>
@@ -42,15 +34,14 @@
 </div>
 
 <div class="bar">
-  <button class="btn" data-v="primary" id="play">播放事件流</button>
-  <button class="btn" id="spd">1×</button>
+  <button class="btn" data-v="primary" id="next10">下一步</button>
   <button class="btn" data-v="ghost" id="reset10">重置</button>
   <span class="step-no" id="clock">00:00.0</span>
 </div>
 
 <div class="caption" id="cap10" style="margin-top:8px">
   <span class="cap-k">IDLE</span>
-  点「播放事件流」。注意三件事同时发生：左下角 EMIT 里冒出的字符、右侧界面里的字符、下方事件流里最新的那条 <code>llm_delta</code>。
+  点「下一步」。每按一次只前进一个字符：左下角 EMIT 里冒出的那个字、它是哪个节点发出来的、右侧同一时刻落下的同一个字。
 </div>
 
 <h2>事件流</h2>
@@ -141,24 +132,28 @@ __PAGER__
 
 <script>
 (function () {
-  const railNodes = $$('.rail-node');
-  const wires = $$('.rail-wire');
-  const chip = $('#chip');
-  const emitMeta = $('#emitMeta');
-  const uiState = $('#uiState');
-  const cap = $('#cap10');
-  const evs = $('#evs');
-  const evCount = $('#evCount');
-  const clock = $('#clock');
-  const bub = $('#bub');
-  const bubTxt = $('#bubTxt');
-  const bubCaret = $('#bubCaret');
-  const term = $('#term');
-  const termTxt = $('#termTxt');
-  const termStatus = $('#termStatus');
-  const uiEmpty = $('#uiEmpty');
-  const uiRun = $('#uiRun');
+  const chip = $('#chip'), emitMeta = $('#emitMeta'), rf = $('#rf10');
+  const cap = $('#cap10'), evs = $('#evs'), evCount = $('#evCount'), clock = $('#clock');
+  const bub = $('#bub'), bubTxt = $('#bubTxt'), bubCaret = $('#bubCaret');
+  const term = $('#term'), termTxt = $('#termTxt'), termStatus = $('#termStatus');
+  const uiEmpty = $('#uiEmpty'), uiRun = $('#uiRun'), uiState = $('#uiState');
   const I0 = cap.innerHTML;
+
+  const flow = new AgentFlow($('#flow10'), {
+    nodes: [
+      { id: 'start', label: 'agent_start', x: 50, y: 10, k: 'io' },
+      { id: 'model', label: 'model_call',  x: 29, y: 41, k: 'model' },
+      { id: 'tool',  label: 'tool_call',   x: 71, y: 41, k: 'tool' },
+      { id: 'end',   label: 'agent_end',   x: 50, y: 86, k: 'done' }
+    ],
+    edges: [
+      { id: 'e_in',  d: 'M50 13 C43 22, 33 27, 30 37' },
+      { id: 'e_mt',  d: 'M40 41 L62 41' },
+      { id: 'e_tm',  d: 'M60 48 L38 48' },
+      { id: 'e_out', d: 'M30 47 C36 62, 44 74, 49 82' }
+    ]
+  });
+  addFlowArrows($('#flow10 svg'), flow.edgeEls);
 
   const LLM = '先测一下到 www.huawei.com 的连通性，再看丢包率——如果 100% 丢包，多半是链路或防火墙；只是延迟高，那是路由问题。';
   const CMD = 'ping www.huawei.com';
@@ -168,31 +163,47 @@ __PAGER__
               '--- www.huawei.com ping statistics ---\n' +
               '2 packets transmitted, 2 received, 0.0% packet loss';
 
-  let t = 0, seq = 0, running = false, curRow = null, SPD = 1;
-  // 低动效偏好下不做逐字动画，直接呈现完整结果（也是 shot.py 默认的 reduce 模式）
-  const RM = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const CAP = {
+    agent_start: '前端收到第一个事件：清界面、进运行态、开计时。<b>此时还没有任何内容</b>——用户看到的应该是"正在运行"，不是白屏。',
+    llm_start: '模型开始生成。<b>气泡先出现、但是空的</b>——第一个 delta 要等 TTFT，这段等待必须被一个"正在说话的空框"填住。',
+    llm_end: '生成结束。<b>前端最后做的不是"停打字"，是用 final 校正全文</b>——delta 拼出来的版本和最终版不一定一致。',
+    tool_start: '模型决定调工具。<b>终端框在这一刻建出来</b>，不是等命令跑完——用户先看到一个空壳，知道它要去执行了。',
+    tool_end: '框闭合，显示 exit code。<b>从这个时刻起这个框可以被折叠、复制、审计</b>——它从"过程"变成了"记录"。',
+    agent_end: '收口。前端汇总耗时、token、工具次数，把一次"过程"折成一条"结果"。到这里，用户才真正看见 agent 做了什么。'
+  };
+
+  /* 每一步 = 一个字，或者一个生命周期事件 */
+  const STEPS = [];
+  const life = function (ev, node, edges, payload, kind, down) {
+    STEPS.push({ kind: 'life', ev: ev, node: node, edges: edges, payload: payload, ck: kind, down: down || '' });
+  };
+  const chars = function (ev, text, target, kind) {
+    Array.from(text).forEach(function (ch) {
+      STEPS.push({ kind: 'char', ev: ev, ch: ch, target: target, ck: kind });
+    });
+  };
+
+  life('agent_start', ['start'], ['e_in'], '{"trace_id":"tr_8f21","model":"claude-sonnet"}', '', 'agent_start');
+  life('llm_start', ['model'], ['e_in'], '{"id":"m1","model":"claude-sonnet"}', 'llm', 'model_call');
+  chars('llm_delta', LLM, 'bub', 'llm');
+  life('llm_end', ['model'], ['e_in'], '{"id":"m1","finish":"stop","tokens":42}', 'llm', 'model_call');
+  life('tool_start', ['tool'], ['e_in', 'e_mt'], '{"tool":"shell","call_id":"a3f"}', 'tool', 'tool_call');
+  life('tool_args', ['tool'], ['e_mt'], '{"cmd":"ping www.huawei.com"}', 'tool', 'tool_call');
+  chars('tool_args_stream', '$ ' + CMD + '\n', 'term', 'tool');
+  life('tool_delta_start', ['tool'], ['e_mt'], 'stream: stdout', 'tool', 'tool_call');
+  chars('tool_delta', OUT, 'term', 'tool');
+  life('tool_end', ['tool'], ['e_tm'], '{"call_id":"a3f","exit":0,"ms":2840}', 'tool', 'tool_call');
+  life('agent_end', ['end'], ['e_out'], '{"ms":6120,"tools":1,"tokens":94}', '', 'agent_end');
+
+  let idx = -1, t = 0, seq = 0, streamRow = null, streamN = 0, curRow = null, done = false;
 
   const pad = function (n, w) { return String(n).padStart(w, '0'); };
   function fmt(ms) {
-    const s = ms / 1000;
-    return pad(Math.floor(s / 60), 2) + ':' + pad(Math.floor(s % 60), 2) + '.' + Math.floor((ms % 1000) / 100);
-  }
-  function paint() { clock.textContent = fmt(t); }
-  const sleep = function (ms) {
-    if (RM) return Promise.resolve();
-    return new Promise(function (r) { setTimeout(r, ms / SPD); });
-  };
-
-  function activate(name) {
-    railNodes.forEach(function (n) { n.classList.toggle('on', n.dataset.n === name); });
-    const order = ['start', 'model', 'tool', 'end'];
-    const idx = order.indexOf(name);
-    wires.forEach(function (w, i) { w.classList.toggle('live', i < idx); });
+    const s2 = ms / 1000;
+    return pad(Math.floor(s2 / 60), 2) + ':' + pad(Math.floor(s2 % 60), 2) + '.' + Math.floor((ms % 1000) / 100);
   }
 
   function row(ev, payload, kind) {
-    if (RM) t += 340;
-    seq += 1;
     if (curRow) curRow.classList.remove('on');
     const d = document.createElement('div');
     d.className = 'ev on';
@@ -203,129 +214,90 @@ __PAGER__
     evs.appendChild(d);
     evs.scrollTop = evs.scrollHeight;
     curRow = d;
+    seq += 1;
     evCount.textContent = seq + ' events';
     return d;
   }
 
-  async function type(text, target, kind, evName) {
-    const r = row(evName || 'llm_delta', '', kind);
-    const p = r.querySelector('.ev-p');
-    if (RM) {
-      target.textContent += text;
-      chip.textContent = text.slice(-1);
-      t += text.length * 14; paint();
-      p.textContent = 'data: {"seq":' + seq + ',"text":"' + text.slice(-16) + '"}';
-      return;
+  function charRow(ev, kind, tail) {
+    seq += 1;
+    if (!streamRow || streamRow.dataset.ev !== ev) {
+      if (curRow) curRow.classList.remove('on');
+      const d = document.createElement('div');
+      d.className = 'ev on';
+      d.dataset.ev = ev;
+      if (kind) d.dataset.k = kind;
+      d.innerHTML = '<span class="ev-t"></span><span class="ev-n"><b>event:</b> ' + ev +
+                    ' <span class="ev-c"></span> <span class="ev-p"></span></span>';
+      evs.appendChild(d);
+      streamRow = d;
+      streamN = 0;
+      curRow = d;
     }
-    let s = '';
-    for (let i = 0; i < text.length; i++) {
-      const ch = text[i];
-      s += ch;
-      target.textContent += ch;                 // 右：同一 tick 上屏
-      chip.textContent = ch === ' ' ? '·' : ch;  // 左：同一 tick 冒字
-      p.textContent = 'data: {"seq":' + seq + ',"text":"' + s.slice(-16) + '"}';
-      t += 14;
-      paint();
-      if (i % 10 === 0) await sleep(0);
-      else await sleep(9);
-    }
+    streamN += 1;
+    streamRow.querySelector('.ev-t').textContent = (t / 1000).toFixed(1) + 's';
+    streamRow.querySelector('.ev-c').textContent = '×' + streamN;
+    streamRow.querySelector('.ev-p').textContent = 'data: {"text":"' + tail.replace(/"/g, "'") + '"}';
+    evs.scrollTop = evs.scrollHeight;
+    evCount.textContent = seq + ' events';
   }
 
-  async function play() {
-    if (running) return;
-    reset();
-    running = true;
-    $('#play').textContent = '播放中…';
-    $('#play').disabled = true;
+  function apply(s) {
+    flow.highlight(s.node, s.edges || []);
+    t += s.kind === 'char' ? 14 : 430;
+    clock.textContent = fmt(t) + ' · ' + (idx + 1) + ' / ' + STEPS.length;
 
-    activate('start');
-    cap.innerHTML = '<span class="cap-k">agent_start</span>前端收到第一个事件：清界面、进运行态、开计时。<b>此时还没有任何内容</b>——用户看到的应该是"正在运行"，不是白屏。';
-    row('agent_start', '{"trace_id":"tr_8f21","model":"claude-sonnet"}');
-    uiEmpty.hidden = true;
-    uiRun.hidden = false;
-    uiState.textContent = 'running';
-    emitMeta.textContent = 'agent_start';
-    await sleep(430);
-
-    activate('model');
-    cap.innerHTML = '<span class="cap-k">llm_start</span>模型开始生成。<b>注意气泡是先出现的、空的</b>——第一个 delta 要等 TTFT，这段等待必须被"一个正在说话的空框"填住。';
-    row('llm_start', '{"id":"m1","model":"claude-sonnet"}', 'llm');
-    bub.hidden = false;
-    emitMeta.textContent = 'llm_start';
-    await sleep(520);
-
-    cap.innerHTML = '<span class="cap-k">llm_delta</span>最关键的一段：<b>左边每冒出一个字，右边同一时刻落下一个字</b>。不是分段刷新，是逐字符同步。';
-    emitMeta.textContent = 'llm_delta · 逐字';
-    await type(LLM, bubTxt, 'llm');
-
-    cap.innerHTML = '<span class="cap-k">llm_end</span>生成结束。<b>前端最后做的不是"停打字"，是用 final 校正全文</b>——delta 拼出来的版本和最终版不一定一致。';
-    row('llm_end', '{"id":"m1","finish":"stop","tokens":42}', 'llm');
-    bubCaret.style.display = 'none';
-    emitMeta.textContent = 'llm_end';
-    await sleep(460);
-
-    activate('tool');
-    cap.innerHTML = '<span class="cap-k">tool_start</span>模型决定调工具。<b>终端框是在这一刻建出来的</b>，不是等命令跑完——用户先看到一个空壳，知道"它要去执行了"。';
-    row('tool_start', '{"tool":"shell","call_id":"a3f"}', 'tool');
-    term.hidden = false;
-    emitMeta.textContent = 'tool_start';
-    await sleep(480);
-
-    cap.innerHTML = '<span class="cap-k">tool_args</span>参数到了，填进框里。<b>这一步的价值是"可拦截"</b>：命令一显示，用户就知道它要干什么了（第 08 章的审批就靠这个）。';
-    row('tool_args', '{"cmd":"ping www.huawei.com"}', 'tool');
-    termTxt.textContent = '$ ';
-    emitMeta.textContent = 'tool_args';
-    for (let i = 0; i < CMD.length; i++) {
-      termTxt.textContent += CMD[i];
-      chip.textContent = CMD[i] === ' ' ? '·' : CMD[i];
-      t += 22; paint();
-      await sleep(14);
+    if (s.kind === 'char') {
+      chip.textContent = s.ch === ' ' ? '·' : (s.ch === '\n' ? '⏎' : s.ch);
+      emitMeta.textContent = (s.ev === 'tool_args_stream' ? 'tool_args' : s.ev);
+      if (s.target === 'bub') bubTxt.textContent += s.ch;
+      else termTxt.textContent += s.ch;
+      const tail = (s.target === 'bub' ? bubTxt.textContent : termTxt.textContent).slice(-18);
+      charRow(s.ev === 'tool_args_stream' ? 'tool_args' : s.ev, s.ck, tail);
+      return;
     }
-    termTxt.textContent += '\n';
-    await sleep(240);
 
-    cap.innerHTML = '<span class="cap-k">tool_delta</span>工具在跑，输出逐块回来。<b>它是字节流，不是行</b>——你可能先收到半行，下一块才补齐。前端按块追加即可，不要按行解析再重排。';
-    emitMeta.textContent = 'tool_delta · 逐字';
-    await type(OUT, termTxt, 'tool', 'tool_delta');
+    streamRow = null;
+    chip.textContent = '·';
+    emitMeta.textContent = s.ev;
+    if (s.down) rf.textContent = s.down;
+    row(s.ev, s.payload, s.ck);
+    if (CAP[s.ev]) cap.innerHTML = '<span class="cap-k">' + s.ev + '</span>' + CAP[s.ev];
 
-    cap.innerHTML = '<span class="cap-k">tool_end</span>框闭合，显示 exit code。<b>从这个时刻起这个框可以被折叠、复制、审计</b>——它从"过程"变成了"记录"。';
-    row('tool_end', '{"call_id":"a3f","exit":0,"ms":2840}', 'tool');
-    termStatus.textContent = 'exit 0 · 2.8s';
-    emitMeta.textContent = 'tool_end';
-    await sleep(430);
+    if (s.ev === 'agent_start') { uiEmpty.hidden = true; uiRun.hidden = false; uiState.textContent = 'running'; }
+    if (s.ev === 'llm_start') { bub.hidden = false; }
+    if (s.ev === 'llm_end') { bubCaret.style.display = 'none'; }
+    if (s.ev === 'tool_start') { term.hidden = false; }
+    if (s.ev === 'tool_end') { termStatus.textContent = 'exit 0 · 2.8s'; }
+    if (s.ev === 'agent_end') { uiState.textContent = 'done'; }
+  }
 
-    activate('end');
-    cap.innerHTML = '<span class="cap-k">agent_end</span>收口。前端汇总耗时、token、工具次数，<b>把一次"过程"折成一条"结果"</b>。到这里，用户才真正看见 agent 做了什么。';
-    row('agent_end', '{"ms":6120,"tools":1,"tokens":94}');
-    uiState.textContent = 'done';
-    emitMeta.textContent = 'done';
-    running = false;
-    $('#play').textContent = '重播';
-    $('#play').disabled = false;
+  function next() {
+    if (done) return;
+    idx += 1;
+    if (idx >= STEPS.length) { done = true; return; }
+    apply(STEPS[idx]);
+    if (idx === STEPS.length - 1) { done = true; $('#next10').disabled = true; }
   }
 
   function reset() {
-    evs.innerHTML = ''; curRow = null; seq = 0; t = 0;
+    idx = -1; t = 0; seq = 0; streamRow = null; streamN = 0; curRow = null; done = false;
+    evs.innerHTML = '';
     evCount.textContent = '0 events';
-    chip.textContent = '·'; emitMeta.textContent = '等待开始';
+    chip.textContent = '·';
+    emitMeta.textContent = '等待开始';
+    rf.textContent = 'idle';
     uiState.textContent = 'idle';
     bub.hidden = true; bubTxt.textContent = ''; bubCaret.style.display = '';
     term.hidden = true; termTxt.textContent = ''; termStatus.textContent = 'running';
     uiEmpty.hidden = false; uiRun.hidden = true;
-    railNodes.forEach(function (n) { n.classList.remove('on'); });
-    wires.forEach(function (w) { w.classList.remove('live'); });
+    flow.reset();
     cap.innerHTML = I0;
-    clock.textContent = '00:00.0';
-    $('#play').textContent = '播放事件流';
-    $('#play').disabled = false;
-    running = false;
+    clock.textContent = '00:00.0 · 0 / ' + STEPS.length;
+    $('#next10').disabled = false;
   }
 
-  $('#spd').addEventListener('click', function () {
-    SPD = SPD === 1 ? 3 : 1;
-    this.textContent = SPD + '×';
-  });
-  $('#play').addEventListener('click', play);
+  $('#next10').addEventListener('click', next);
   $('#reset10').addEventListener('click', reset);
   reset();
 })();
