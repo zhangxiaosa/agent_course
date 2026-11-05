@@ -49,12 +49,12 @@
   <div class="body"><b>一句话记住</b>：中间件 = <code>(hook, handler)</code>。handler 拿到 state，返回 state 或者一个跳转指令。没有第九种原语。第 06–09 章讲的六个中间件，全部落在这张表里。</div>
 </div>
 
-<h2>这六个各自治什么病</h2>
+<h2>这六个各自解决什么问题</h2>
 
 <div class="tbl-wrap">
 <table>
   <colgroup><col style="width:18%"><col style="width:15%"><col style="width:37%"><col style="width:30%"></colgroup>
-  <thead><tr><th>中间件</th><th>挂在</th><th>治什么</th><th>代价</th></tr></thead>
+  <thead><tr><th>中间件</th><th>挂在</th><th>解决什么</th><th>代价</th></tr></thead>
   <tbody>
     <tr><td><b>上下文压缩</b></td><td>before_model</td><td>历史只增不减，第 30 轮 prompt 里全是废目录列表</td><td>摘要有损，细节丢了就找不回</td></tr>
     <tr><td><b>工具卸载</b></td><td>after_tool</td><td>一次 <code>ls -R</code> 把几万行灌进上下文</td><td>模型要多花一次调用来读回全文</td></tr>

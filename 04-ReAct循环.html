@@ -913,6 +913,48 @@ tr:last-child td { border-bottom: 0; }
 .cd { background: #fff; border-color: #c9cfd8; color: #2a3441; }
 .chain .cd .cs { color: #6b7482; }
 
+/* ---------- MCP 组合爆炸对照图 ---------- */
+
+.mcpfig .col-body { padding: 10px 12px; overflow: visible; }
+.mcpfig svg { display: block; width: 100%; height: auto; }
+.mcpfig .bx   { fill: #fff; stroke: #c9cfd8; stroke-width: 1; }
+.mcpfig .bt   { font-family: var(--mono); font-size: 9.5px; fill: #2a3441; }
+.mcpfig .ln   { stroke: #c0c7d1; stroke-width: 1; fill: none; }
+.mcpfig .bus  { fill: #faf1e4; stroke: #d8bd93; stroke-width: 1; }
+.mcpfig .busTx { font-family: var(--mono); font-size: 9.5px; fill: #8a5310; }
+.mcpfig .muted { font-family: var(--mono); font-size: 9.5px; fill: #6b7482; }
+
+/* ---------- 通用 SVG 图（形态谱系） ---------- */
+
+.gsvg { display: block; width: 100%; height: auto; }
+.gn { fill: #fff; stroke: #c9cfd8; stroke-width: 1; }
+.gn.cur { fill: #faf1e4; stroke: #a9660f; stroke-width: 1.5; }
+.gn.done { fill: #f2f8f4; stroke: #1f7a3d; }
+.gn.best { fill: #f2f8f4; stroke: #1f7a3d; stroke-width: 1.5; }
+.gn.dim { opacity: .38; }
+.gt { font-family: var(--mono); font-size: 11px; fill: #2a3441; }
+.gts { font-family: var(--mono); font-size: 9.5px; fill: #6b7482; }
+.gt.dim, .gts.dim { opacity: .38; }
+.ge { fill: none; stroke: #c0c7d1; stroke-width: 1.2; }
+.ge.on { stroke: #a9660f; stroke-width: 1.8; }
+.gea { stroke: #9fb3cf; }
+.geb { stroke: #d8bd93; }
+.fig.tall { height: auto; padding: 12px 14px 4px; }
+.steps { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; }
+.stepn { font-family: var(--mono); font-size: 10.5px; color: var(--text-3); }
+.fig.tall .gsvg { position: static; inset: auto; width: 100%; height: auto; }
+.fig.tall { display: block; }
+.glb { fill: #fbfcfd; stroke: none; }
+.fig.tall.narrow { max-width: 560px; margin-left: auto; margin-right: auto; }
+@media (max-width: 760px) {
+  .fig.tall { overflow-x: auto; }
+  .fig.tall .gsvg { min-width: 780px; }
+  .fig.tall.narrow { max-width: none; }
+  .fig.tall.narrow .gsvg { min-width: 450px; }
+}
+.swipe { display: none; font-family: var(--mono); font-size: 10.5px; color: var(--text-3); }
+@media (max-width: 760px) { .swipe { display: block; padding-top: 4px; } }
+
 </style>
 </head>
 <body>
@@ -1340,9 +1382,9 @@ function bindSeg(selector, onChange) {
 
 <p>第 1 个出口最不可靠：模型完全可以在没查完的情况下给出一个像样的结论。这就是第 09 章 evaluator 中间件要解决的问题——不信任模型的自述，另派一个 judge 对着原始目标验收。</p>
 
-<h2>这个循环有三个病灶</h2>
+<h2>这个循环有三个问题</h2>
 
-<p>环一旦能转起来，问题就从"能不能跑"变成"跑得贵不贵、稳不稳、对不对"。三个病灶分别对应后面的三组中间件：</p>
+<p>环一旦能转起来，问题就从"能不能跑"变成"跑得贵不贵、稳不稳、对不对"。三个问题分别对应后面的三组中间件：</p>
 
 <p><a href="06-记忆中间件.html"><b>① 上下文只增不减</b></a> —— 历史全集重放，第 30 轮时 prompt 里躺着一堆早已无用的目录列表。→ 上下文压缩、工具输出卸载。</p>
 
