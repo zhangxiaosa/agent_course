@@ -1250,7 +1250,6 @@ function bindSeg(selector, onChange) {
   <div>
     <span class="ch-no">00 / OVERVIEW</span>
     <h1>Agent 基本原理</h1>
-    <p class="hero-sub">一份可以点的教程。不背框架 API，只讲所有 agent 框架底下那套共同的结构：<b>一次模型调用、一次工具执行、一个把两者串起来的循环</b>，以及围在循环外面的那一圈拦截层。</p>
   </div>
   <div class="hloop" aria-hidden="true">
     <svg viewBox="0 0 200 200">
@@ -1265,7 +1264,9 @@ function bindSeg(selector, onChange) {
   </div>
 </section>
 
-<p class="lede">这门课的全部内容，可以压成一条因果链。每一层都解决了上一层的一个具体缺陷，同时自己又制造了一个新缺陷——下一层就是为它准备的。</p>
+<p class="lede">我把 agent 的发展和知识压成了一条因果链：每一层解决一件事，同时留下一个问题，下一层来解决它。</p>
+
+<p>链分五层。L1 是模型本身，L2 是它伸手的方式，L3 把这两者串成一个循环——从这里开始，agent 才有能力自己干完一件事。之后的两层长在循环外面：L4 管它别跑偏，L5 管用户别被蒙在鼓里。点左边任意一层，右边会告诉你它解决了什么、又欠下了什么。</p>
 
 <div class="map-grid">
   <div class="stack" id="stack">
@@ -1299,38 +1300,6 @@ function bindSeg(selector, onChange) {
   <div class="detail" id="detail"></div>
 </div>
 
-<h2>怎么读</h2>
-
-<p>每一章都是一个可以自己走的实验。左边是 agent 的节点图，中间是它此刻的 checkpoint（内部状态），右边是它产出的对话记录。<b>点「下一步」，你看的不是结论，是过程怎么一步步从状态里长出来。</b></p>
-
-<p>建议按顺序读。第 04 章的循环是整门课的地基，第 05 章之后的每一个中间件，都是在那个循环上插一根钩子；第 10 章则把这个循环的内部事件翻到屏幕上来。</p>
-
-<div class="note" data-t="good">
-  <div class="bar"></div>
-  <div class="body"><b>本书的取舍</b>：不写任何具体框架的 API。LangGraph 的 <code>pre_model_hook</code>、OpenAI 的 Responses API、Claude Code 的权限层，在结构上是同一件事的三种叫法。你把这套结构记住，读任何一个框架的文档都会快得多。</div>
-</div>
-
-<h2>章节索引</h2>
-
-<div class="tbl-wrap">
-<table>
-  <colgroup><col style="width:12%"><col style="width:30%"><col style="width:58%"></colgroup>
-  <thead><tr><th>章</th><th>主题</th><th>你会看到的东西</th></tr></thead>
-  <tbody>
-    <tr><td><b>01</b></td><td>LLM 的四次跃迁</td><td>RLHF 带来质变、function call 装上手、长思维链、agentic RL。含两处常见记忆偏差的更正。</td></tr>
-    <tr><td><b>02</b></td><td>工具调用的演进</td><td>同一个工具，在 function call / MCP / code-as-action 三种协议下的真实写法对照。</td></tr>
-    <tr><td><b>03</b></td><td>形态谱系</td><td>CoT、ToT（可展开与剪枝）、Plan-and-Execute、自定义工作流 DAG、ReAct。</td></tr>
-    <tr><td><b>04</b></td><td>ReAct 循环</td><td>一个 5 轮任务的 11 步回放，含并行工具调用与 token 成本的真相。</td></tr>
-    <tr><td><b>05</b></td><td>中间件全景</td><td>agent 生命周期上的 8 个钩子 × 6 类中间件矩阵，点格子看它在那里做什么。</td></tr>
-    <tr><td><b>06</b></td><td>记忆：压缩与卸载</td><td>上下文爆掉时的两条止血带，以及更完整的记忆系统长什么样。</td></tr>
-    <tr><td><b>07</b></td><td>可观测</td><td>span 瀑布、token 账本、一次 agent 运行的完整 trace。</td></tr>
-    <tr><td><b>08</b></td><td>人工审批</td><td><code>rm -rf</code> 被拦下的那一秒，审批层到底做了什么。</td></tr>
-    <tr><td><b>09</b></td><td>控制流</td><td>指数退避重试、evaluator 打回重做——两种"往回跳"的中间件。</td></tr>
-    <tr><td><b>10</b></td><td>流式与前端</td><td>左侧发一个字，右侧立刻长一个字的事件总线与渲染。</td></tr>
-  </tbody>
-</table>
-</div>
-
 <footer class="pager"><span></span><a class="next" href="01-LLM的演进.html"><span class="dir">下一章 →</span>01 · LLM 的四次跃迁</a></footer>
 
 <script>
@@ -1338,38 +1307,38 @@ function bindSeg(selector, onChange) {
   const DATA = {
     llm: {
       ch: '01 · LLM 的四次跃迁', name: 'L1 · 语言模型',
-      p: '<b>它解决了什么</b>：把一句模糊的意图压缩成一个可计算的分布，再采样出下一步该出现哪个 token。2022 年底 RLHF 把"会说话"推成了"愿意配合"，这是 agent 得以存在的前提——你没法让一个不听话的模型去执行任务。',
-      problem: '会说话', bug: '不会动手',
-      answer: '它没有任何执行能力，也观察不到外部世界。哪怕你告诉它文件在哪，它也只能猜内容。',
-      next: '工具调用'
+      ps: [
+        '模型把一句模糊的意图压成一个可计算的分布，再从里面采样出下一个 token。2022 年底的 RLHF 把「会说话」推成了「愿意配合」，agent 第一次有了可以听指挥的大脑。',
+        '但它只有语言这一个动作。它没有执行能力，也看不见外部世界；你告诉它文件在哪，它也只能猜内容。'
+      ]
     },
     tool: {
       ch: '02 · 工具调用的演进', name: 'L2 · 工具调用',
-      p: '<b>它解决了什么</b>：让模型输出结构化参数（JSON），由宿主程序去执行，再把结果作为一条消息塞回去。模型从此有了"手"——但手是宿主替它动的。',
-      problem: '能动手', bug: '只能动一次',
-      answer: '单次问答的范式没变。多步任务需要"做完一步看结果、再决定下一步"，而这一步还没有任何机制承载。',
-      next: '循环'
+      ps: [
+        '模型学会输出结构化的参数，由宿主程序去执行，执行结果再作为一条消息塞回来。它从此有了手：读文件、跑命令、查数据库，都不必再靠猜。',
+        '手却是宿主替它动的，而且一次只动一下。做完一步要先看结果、再决定下一步，这套往复还没有机制承载。'
+      ]
     },
     loop: {
       ch: '03 · 形态谱系 / 04 · ReAct 循环', name: 'L3 · 循环',
-      p: '<b>它解决了什么</b>：把 model_call 和 tool_call 装进 while，每一轮把<b>全部历史原样重放</b>。模型由此获得了一种假记忆——它的"记得"就是 prompt 里还躺着那些字。',
-      problem: '能迭代', bug: '三个结构性缺陷',
-      answer: '上下文只增不减、参数直接进执行器、结束与否由模型自己说了算。这三个都不是改 prompt 能解决的。',
-      next: '中间件'
+      ps: [
+        '把模型调用和工具调用装进一个 while：每一轮把全部历史原样重放，模型以此代替记忆，边做边看，直到它自己认为可以收工。',
+        '代价是三个结构性缺陷：上下文只增不减，参数不经检查就进了执行器，任务算不算完成由模型自己说了算。这三件都不是改提示词能解决的，得往循环里插钩子。'
+      ]
     },
     mid: {
       ch: '05–09 · 中间件', name: 'L4 · 中间件',
-      p: '<b>它解决了什么</b>：在 8 个钩子（before/after agent、model、tool）上挂可复用的拦截层。压缩记忆、卸载大输出、记录 trace、挂起审批、失败重试、验收打回——全部是同一套钩子的不同用法。',
-      problem: '能控制', bug: '过程不可见',
-      answer: '循环稳了，但用户只看到一个转圈的图标，然后突然出现一段结论。长任务的黑箱感，是产品层的硬伤。',
-      next: '流式前端'
+      ps: [
+        '在模型、工具、agent 的进出各开一个钩子，把压缩、卸载、追踪、审批、重试、验收做成可复用的拦截层。同一套钩子，换一种用法就是另一种中间件。',
+        '循环因此变得可控、可查，但用户这边仍是黑箱：一个转圈的图标，然后突然是一段结论。长任务的过程没有出口。'
+      ]
     },
     ui: {
       ch: '10 · 流式与前端', name: 'L5 · 流式前端',
-      p: '<b>它解决了什么</b>：把内部事件（<code>llm_delta</code>、<code>tool_delta</code>、<code>tool_args</code>）实时推出去，前端按事件类型渲染。用户终于能看到它正在读哪个文件、正在敲哪条命令。',
-      problem: '能看见', bug: '状态一致性',
-      answer: '流会断、会乱序、会重连。渲染层必须和后端的 checkpoint 严格对齐，否则用户看到的和实际发生的不是一件事。',
-      next: '—（这是当前边界）'
+      ps: [
+        '把内部事件实时推出去，前端按事件类型渲染：模型吐字就长气泡，工具执行就开终端框。一个跑四十秒的任务，被拆成看得见的每一步。',
+        '代价落在一致性上：流会断、会乱序、会重连，渲染层必须和后端的 checkpoint 严格对齐，否则用户看到的和实际发生的不是同一件事。'
+      ]
     }
   };
 
@@ -1379,16 +1348,12 @@ function bindSeg(selector, onChange) {
     detail.innerHTML =
       '<span class="dl">' + d.ch + '</span>' +
       '<h3>' + d.name + '</h3>' +
-      '<p>' + d.p + '</p>' +
-      '<div class="kv"><span class="k">解决</span><span class="v">' + d.problem + '</span></div>' +
-      '<div class="kv"><span class="k">但引入</span><span class="v">' + d.bug + '</span></div>' +
-      '<div class="kv"><span class="k">具体</span><span class="v">' + d.answer + '</span></div>' +
-      '<div class="kv"><span class="k">下一层</span><span class="v">' + d.next + '</span></div>';
+      d.ps.map(function (t) { return '<p>' + t + '</p>'; }).join('');
   }
 
-  $$('.layer').forEach((b) => {
-    b.addEventListener('click', () => {
-      $$('.layer').forEach((o) => o.setAttribute('aria-pressed', 'false'));
+  $$('.layer').forEach(function (b) {
+    b.addEventListener('click', function () {
+      $$('.layer').forEach(function (o) { o.setAttribute('aria-pressed', 'false'); });
       b.setAttribute('aria-pressed', 'true');
       show(b.dataset.v);
     });
