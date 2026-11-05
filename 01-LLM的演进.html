@@ -663,7 +663,7 @@ tr:last-child td { border-bottom: 0; }
 .detail h3 { margin: 0 0 6px; font-size: 15px; }
 .detail .dl { font-family: var(--mono); font-size: 10px; color: var(--amber); letter-spacing: .06em; display: block; margin-bottom: 9px; }
 .detail p { font-size: 13.5px; line-height: 1.68; margin-bottom: 10px; }
-.detail .kv { display: grid; grid-template-columns: 92px minmax(0,1fr); gap: 8px; font-size: 12.5px; margin-bottom: 5px; }
+.detail .kv { display: grid; grid-template-columns: 112px minmax(0,1fr); gap: 10px; font-size: 12.5px; margin-bottom: 5px; }
 .detail .kv .k { font-family: var(--mono); font-size: 10.5px; color: var(--text-3); padding-top: 2px; }
 .detail .kv .v { color: var(--text-2); }
 
@@ -1249,7 +1249,7 @@ function bindSeg(selector, onChange) {
 <header class="ch-head">
   <span class="ch-no">01 / MODEL</span>
   <h1>LLM 的四次跃迁</h1>
-  <p class="ch-lede">从"会续写"到"肯配合"，再到"能动手"，再到"会自己思考"，最后到"会自己用工具解决问题"。四次跃迁，每一次都不是把模型变大，而是<b>换了一种训练信号</b>。</p>
+  <p class="ch-lede">从「会续写」到「肯配合」，到「能动手」，到「会自己思考」，再到「会自己用工具解决问题」。四次跃迁，每一次都不是把模型变大，而是<b>换了一种训练信号</b>。</p>
 </header>
 
 <div class="map-grid">
@@ -1257,9 +1257,9 @@ function bindSeg(selector, onChange) {
   <div class="tl" id="tl">
     <div class="tl-item" data-v="m1" data-open>
       <span class="tl-dot"></span>
-      <span class="tl-when">2022-11-30</span>
-      <span class="tl-name">ChatGPT · RLHF 登场</span>
-      <span class="tl-sub">第一次把人类偏好大规模压进模型行为</span>
+      <span class="tl-when">2017 → 2022-11</span>
+      <span class="tl-name">RLHF · 从人类偏好里学奖励</span>
+      <span class="tl-sub">InstructGPT 拼齐三步，ChatGPT 做到产品级体量</span>
     </div>
     <div class="tl-item" data-v="m2">
       <span class="tl-dot"></span>
@@ -1271,13 +1271,13 @@ function bindSeg(selector, onChange) {
       <span class="tl-dot"></span>
       <span class="tl-when">2025-01-20</span>
       <span class="tl-name">DeepSeek-R1 · 长思维链</span>
-      <span class="tl-sub">只奖励"答对"，思考过程自己长出来</span>
+      <span class="tl-sub">只奖励对错，思考过程自己长出来</span>
     </div>
     <div class="tl-item" data-v="m4">
       <span class="tl-dot"></span>
       <span class="tl-when">2025 上半年</span>
       <span class="tl-name">Agentic RL · 把用工具训进策略</span>
-      <span class="tl-sub">奖励从"文字好不好"变成"任务成没成"</span>
+      <span class="tl-sub">奖励从「文字好不好」变成「任务成没成」</span>
     </div>
   </div>
 
@@ -1285,24 +1285,6 @@ function bindSeg(selector, onChange) {
     <div class="detail" id="detail"></div>
   </div>
 
-</div>
-
-<h2>先纠正两处常见记忆偏差</h2>
-
-<div class="note" data-t="correction">
-  <div class="bar"></div>
-  <div class="body">
-    <b>① RLHF 不是 2022 年发明的，ChatGPT 也不是"第一次引入"。</b><br>
-    Christiano 等人 2017 年就做了"从人类偏好里学奖励函数"，Ziegler 2019 把它用到语言模型，InstructGPT（2022 年 3 月）已经跑通了完整三步。ChatGPT 的贡献是把这套流程做到了产品级体量，让全世界第一次感到"模型在配合我"。说"第一次质变"，准确；说"第一次发明"，不准确。
-  </div>
-</div>
-
-<div class="note" data-t="correction">
-  <div class="bar"></div>
-  <div class="body">
-    <b>② 带来"思考"的不是 DeepSeek-V3，是 DeepSeek-R1。</b><br>
-    V3 于 2024 年 12 月发布，是 671B 总参 / 37B 激活的 MoE <b>底座</b>，本身不做长思维链。<b>R1</b>（2025-01-20）才是那个把"思考"训出来的模型——而且 V3 正是 R1 的基座。这两个模型经常被记混，因为它们在同一个技术报告家族里，发布只隔了一个月。
-  </div>
 </div>
 
 <h2>四次跃迁，改的都不是参数量</h2>
@@ -1314,7 +1296,7 @@ function bindSeg(selector, onChange) {
   <colgroup><col style="width:16%"><col style="width:26%"><col style="width:26%"><col style="width:32%"></colgroup>
   <thead><tr><th>跃迁</th><th>训练信号</th><th>能力增量</th><th>同时引入的新故障</th></tr></thead>
   <tbody>
-    <tr><td><b>RLHF</b></td><td>人类对两个回答的排序</td><td>从"续写"变成"回应"</td><td>奖励模型只是近似 → reward hacking；多样性下降</td></tr>
+    <tr><td><b>RLHF</b></td><td>人类对两个回答的排序</td><td>从「续写」变成「回应」</td><td>奖励模型只是近似 → reward hacking；多样性下降</td></tr>
     <tr><td><b>function call</b></td><td>不训练，纯 schema 约束解码</td><td>输出可被程序消费</td><td>函数名幻觉、参数不合 schema、越权调用</td></tr>
     <tr><td><b>长思维链</b></td><td>答案对不对（可规则验证）</td><td>多步推理、自我检查</td><td>思考 token 直接变钱；延迟暴涨；过程不可控</td></tr>
     <tr><td><b>agentic RL</b></td><td>整条轨迹的最终任务成败</td><td>自己判断何时用哪个工具</td><td>环境搭建成本极高；奖励可被 hack；轨迹采样极贵</td></tr>
@@ -1324,25 +1306,28 @@ function bindSeg(selector, onChange) {
 
 <p>这也解释了为什么第 05 章之后要讲那么多中间件：<b>每一次能力跃迁，都是把一个新的不可控因素放进了系统</b>。中间件就是给这些不可控因素装的保险。</p>
 
-<h2>关于 agentic RL 的时间坐标</h2>
+<h2>agentic RL 的时间坐标</h2>
 
-<p>你提到"具体对应哪个模型、什么时间，我不确定"。它不是某一天某一个模型的单点事件，而是 2025 年上半年密集出现的一条线。三个可查的坐标：</p>
+<p>它不是一个模型在某一天的发布，而是 2025 年上半年密集出现的一条线。三个可查的坐标：</p>
 
 <ul>
-  <li><b>2025-04-15 · ReTool</b>（字节 Seed）——第一次把代码解释器插进强化学习的 rollout 里：模型边推理边执行代码，只按最终答案给奖励。<span class="tag" data-c="ok">AIME24 67.0% / 400 步</span> 对比纯文本 RL 基线 40.0% / 1080 步。训练中自发出现"代码写错了自己改"的行为。</li>
+  <li><b>2025-04-15 · ReTool</b>（字节 Seed）——第一次把代码解释器插进强化学习的 rollout 里：模型边推理边执行代码，只按最终答案给奖励。<span class="tag" data-c="ok">AIME24 67.0% / 400 步</span> 对比纯文本 RL 基线 40.0% / 1080 步。训练中自发出现「代码写错了自己改」的行为。</li>
   <li><b>2025-07-11 · Kimi K2</b>——第一次把 agentic RL 做成完整、可复现的工程体系：3000+ 真实 MCP 工具演化出 20000+ 合成工具，生成数千个 agent 与任务，用模拟环境跑多轮轨迹，只保留判定成功的那些；奖励侧把可验证奖励（RLVR）和自评 rubric 拼在一起。<span class="tag" data-c="ok">SWE-bench Verified 65.8</span> <span class="tag" data-c="ok">Tau2-Bench 66.1</span>，且是不开思考模式的成绩。</li>
   <li><b>2025-08 · DeepSeek-V3.1</b>——混合推理架构，post-training 明确针对工具使用与 agent 任务加强。</li>
 </ul>
 
-<p>这三者共享同一个转向：<b>训练目标从"这段文本的概率"变成了"这条轨迹的结局"</b>。模型不再学"怎么说得像"，而学"怎么做得成"。第 04 章那个循环，正是被训练的那个对象。</p>
+<p>三者共享同一个转向：<b>训练目标从「这段文本的概率」变成了「这条轨迹的结局」</b>。模型不再学「怎么说得像」，而学「怎么做得成」。第 04 章那个循环，正是被训练的那个对象。</p>
 
 <h2>来源</h2>
 
 <ul>
+  <li>Christiano et al., <i>Deep reinforcement learning from human preferences</i>, 2017, arXiv:1706.03741</li>
+  <li>Ziegler et al., <i>Fine-tuning language models from human preferences</i>, 2019, arXiv:1909.08593</li>
+  <li>InstructGPT: <i>Training language models to follow instructions with human feedback</i>, 2022-03, arXiv:2203.02155</li>
+  <li>DeepSeek-V3 技术报告，2024-12，arXiv:2412.19437</li>
+  <li>DeepSeek-R1 发布说明，2025-01-20，DeepSeek 官方</li>
   <li>ReTool: <i>Reinforcement Learning for Strategic Tool Use in LLMs</i>，ByteDance Seed，2025-04-15，arXiv:2504.11536</li>
   <li>Kimi K2: <i>Open Agentic Intelligence</i>，Moonshot AI，2025-07，arXiv:2507.20534</li>
-  <li>DeepSeek-R1 发布说明，2025-01-20，DeepSeek 官方</li>
-  <li>InstructGPT: <i>Training language models to follow instructions with human feedback</i>，2022-03，arXiv:2203.02155</li>
 </ul>
 
 <footer class="pager"><a class="prev" href="00-总览.html"><span class="dir">← 上一章</span>Agent 基本原理 · 从 LLM 到可交互的循环</a><a class="next" href="02-工具调用的演进.html"><span class="dir">下一章 →</span>02 · 工具调用的演进</a></footer>
@@ -1351,30 +1336,30 @@ function bindSeg(selector, onChange) {
 (function () {
   const DATA = {
     m1: {
-      no: '01 · 2022-11-30', title: 'ChatGPT（GPT-3.5）· RLHF',
-      p: 'RLHF 分三步：先用人工示范做 SFT 冷启动；再让人对同一问题的多个回答排序，训出一个奖励模型；最后用 PPO 拿这个奖励模型当裁判，去优化生成策略。',
+      no: '01 · 2017 → 2022-11-30', title: 'RLHF · 从人类偏好里学奖励',
+      p: '这条路走了五年。2017 年，Christiano 等人先解决了「怎么把人类偏好变成一个可优化的奖励函数」；2019 年，Ziegler 把它用到语言模型上；2022 年 3 月的 InstructGPT 拼齐了完整三步——人工示范做 SFT 冷启动、对同一问题的多个回答排序训出奖励模型、再用 PPO 拿这个奖励模型当裁判去优化生成策略。同年 11 月 30 日上线的 ChatGPT，把同一套流程推到了产品级体量。',
       points: [
-        ['质变点', '知识没变多，<b>行为变了</b>。base 模型会顺着你的话往下续写，RLHF 后的模型会"回答你的问题"。'],
-        ['代价', '奖励模型只是人类偏好的近似。模型很快学会<b>讨好裁判</b>而不是完成任务——这就是 reward hacking 的起点。'],
-        ['对 agent 的意义', '没有这一步，就没有"听话的模型"。让一个不配合的模型去执行多步任务，第一步就会跑偏。']
+        ['质变在哪', '知识没变多，<b>行为变了</b>。base 模型会顺着你的话往下续写，RLHF 之后的模型会「回答你的问题」。这是第一次质变，不是第一次发明。'],
+        ['代价', '奖励模型只是人类偏好的近似。模型很快学会<b>讨好裁判</b>而不是完成任务——reward hacking 的起点。'],
+        ['对 agent 的意义', '没有这一步，就没有「听话的模型」。让一个不配合的模型去执行多步任务，第一步就会跑偏。']
       ],
       caps: [0, 1]
     },
     m2: {
       no: '02 · 2023-03-14 → 06-13', title: 'GPT-4 与 function calling',
-      p: 'GPT-4 于 2023-03-14 发布。function calling 并不是发布日就有的——它是 2023-06-13 随 Chat Completions API 一起上线的能力（<code>gpt-4-0613</code> / <code>gpt-3.5-turbo-0613</code>）。这两件事经常被合并成"GPT-4 引入了 function call"，实际差了三个月。',
+      p: 'GPT-4 于 2023-03-14 发布。function calling 不在发布日，它随 Chat Completions API 在 2023-06-13 上线（<code>gpt-4-0613</code> / <code>gpt-3.5-turbo-0613</code>）。两件事常被并成一句「GPT-4 引入了 function call」，实际隔了三个月。',
       points: [
-        ['质变点', '模型开始生成<b>给程序消费</b>的 JSON，而不是给人读的文字。它必须读懂工具的 schema，并把自然语言意图映射成合法参数。'],
+        ['质变在哪', '模型开始生成<b>给程序消费</b>的 JSON，而不是给人读的文字。它必须读懂工具的 schema，把自然语言意图映射成合法参数。'],
         ['代价', '会幻觉出不存在的函数名，会漏必填字段，会把字符串塞进数字字段。所以每一层工具调用都要 schema 校验。'],
-        ['对 agent 的意义', '这是"手"的第一次出现。但手是宿主替它动的——模型只产出参数，从不执行。这个分离是所有安全机制的立足点。']
+        ['对 agent 的意义', '这是「手」的第一次出现。但手是宿主替它动的——模型只产出参数，从不执行。这个分离是所有安全机制的立足点。']
       ],
       caps: [0, 1, 2]
     },
     m3: {
       no: '03 · 2025-01-20', title: 'DeepSeek-R1 · 长思维链',
-      p: 'R1-Zero 不做 SFT，直接上 GRPO + 规则化奖励：答案对给 +1，错给 −1，中间过程一概不管。结果模型自己学会了延长思考、回头验算、换一条路重试。AIME 2024 从 15.6% 涨到 71.0%，"aha moment" 就是在这个阶段被观察到的。',
+      p: 'R1 的基座是 DeepSeek-V3（2024 年 12 月，671B 总参 / 37B 激活的 MoE）——底座只负责生成，不做长思维链；把「思考」训出来的是 R1 自己。R1-Zero 不做 SFT，直接上 GRPO + 规则化奖励：答案对给 +1，错给 −1，中间过程一概不管。结果模型自己学会了延长思考、回头验算、换一条路重试。AIME 2024 从 15.6% 涨到 71.0%，「aha moment」就是在这个阶段被观察到的。',
       points: [
-        ['质变点', '推理第一次变成<b>一段可训练、可计费、可观察的输出</b>，而不是藏在权重里的某种倾向。'],
+        ['质变在哪', '推理第一次变成<b>一段可训练、可计费、可观察的输出</b>，而不是藏在权重里的某种倾向。'],
         ['代价', '思考 token 是要付钱的。同一道题，思考 3000 token 和思考 200 token 的成本差 15 倍；延迟也直接翻倍。'],
         ['对 agent 的意义', '第 04 章那个循环之所以能收敛，靠的就是模型愿意在动手前先想一步。而第 05 章的可观测中间件，第一件要记的就是思考花了多少 token。']
       ],
@@ -1382,7 +1367,7 @@ function bindSeg(selector, onChange) {
     },
     m4: {
       no: '04 · 2025 上半年', title: 'Agentic RL · 把工具使用训进策略',
-      p: '此前的 RL 都在训"文本推理"。agentic RL 把<b>工具执行</b>塞进 rollout：模型在生成到一半时插入工具调用，拿到真实返回，再继续生成。奖励只在轨迹终点给一次。',
+      p: '此前的 RL 都在训「文本推理」。agentic RL 把<b>工具执行</b>塞进 rollout：模型生成到一半时插入工具调用，拿到真实返回，再继续生成。奖励只在轨迹终点给一次。',
       points: [
         ['ReTool（2025-04）', '代码解释器进 RL 循环，AIME24 67.0%（400 步）对纯文本基线 40.0%（1080 步）。RL 后回答长度反而缩短约 40%，因为算得准了就不需要瞎猜。'],
         ['Kimi K2（2025-07）', '把 agentic 数据合成 + 联合 RL 做成完整管线。工具从 3000 个真实 MCP 演化到 20000 个合成工具，任务是 rubric 化的，成功轨迹才留。'],
