@@ -43,7 +43,15 @@
     <div class="swipe">← 可左右滑动</div>
   </div>
   <div class="loopnote">两层动作：<b>a +1</b> 与 <b>b −10%</b>，每一层都能再走任意一步</div>
-  <div class="caption" id="totcap"><span class="cap-k">点任意节点，剪掉它和它下面的一切</span><span id="totst"></span></div>
+  <div class="bar">
+    <button class="btn" data-v="primary" id="totRun">执行</button>
+    <button class="btn" data-v="ghost" id="totBranch">新建分支</button>
+    <button class="btn" data-v="ghost" id="totBack">回溯</button>
+    <button class="btn" data-v="ghost" id="totPrune">剪掉当前</button>
+    <button class="btn" data-v="ghost" id="totReset">重置</button>
+    <span class="step-no" id="totCalls">1 次评估</span>
+  </div>
+  <div class="caption" id="totcap"><span class="cap-k">当前节点</span><span id="totst"></span></div>
   <div class="mrow">
     <div class="mcard" data-c="model"><span class="mc-t">怎么工作</span><span class="mc-d">生成 N 个候选 → 让评估器打分 → 保留 top-k → 对每个保留项继续展开 → 全部分支剪光时回溯到上一层换分解方式。</span></div>
     <div class="mcard" data-c="model"><span class="mc-t">什么时候用</span><span class="mc-d">搜索式问题：参数调优、定理证明、方案比选。答案是「试出来的」，不是「想出来的」。</span></div>
@@ -205,29 +213,34 @@ __PAGER__
     $$('.pane').forEach(function (p) { p.classList.toggle('on', p.dataset.p === k); });
   });
 
-  /* ================= ToT：参数调优的搜索树 ================= */
+  /* ================= ToT：逐步展开 + 回溯 + 新建分支 ================= */
   const TOT = [
-    { id: 'r',   p: null, x: 500, y: 32,  act: '', t: 'a=1.0 · b=1.00 · 8.0s' },
-    { id: 'a1',  p: 'r',  x: 250, y: 118, act: 'a', t: 'a=2.0 · 8.4s' },
-    { id: 'b1',  p: 'r',  x: 750, y: 118, act: 'b', t: 'b=0.90 · 7.1s' },
-    { id: 'aa',  p: 'a1', x: 125, y: 202, act: 'a', t: 'a=3.0 · 8.6s' },
-    { id: 'ab',  p: 'a1', x: 375, y: 202, act: 'b', t: 'a=2.0 b=0.90 · 7.5s' },
-    { id: 'ba',  p: 'b1', x: 625, y: 202, act: 'a', t: 'a=2.0 b=0.90 · 7.5s' },
-    { id: 'bb',  p: 'b1', x: 875, y: 202, act: 'b', t: 'b=0.81 · 6.4s' },
-    { id: 'aaa', p: 'aa', x: 70,  y: 286, act: 'a', t: 'a=4.0 · 8.9s' },
-    { id: 'aab', p: 'aa', x: 190, y: 286, act: 'b', t: 'a=3.0 b=0.90 · 8.1s' },
-    { id: 'aba', p: 'ab', x: 310, y: 286, act: 'a', t: 'a=3.0 b=0.90 · 8.1s' },
-    { id: 'abb', p: 'ab', x: 430, y: 286, act: 'b', t: 'a=2.0 b=0.81 · 6.8s' },
-    { id: 'baa', p: 'ba', x: 550, y: 286, act: 'a', t: 'a=3.0 b=0.90 · 8.1s' },
-    { id: 'bab', p: 'ba', x: 670, y: 286, act: 'b', t: 'a=2.0 b=0.81 · 6.8s' },
-    { id: 'bba', p: 'bb', x: 790, y: 286, act: 'a', t: 'a=2.0 b=0.81 · 6.8s' },
-    { id: 'bbb', p: 'bb', x: 910, y: 286, act: 'b', t: 'b=0.729 · 6.1s' }
+    { id: 'r',   p: null, x: 500, y: 32,  act: '',  sc: 8.0, t: 'a=1.0 · b=1.00 · 8.0s' },
+    { id: 'a1',  p: 'r',  x: 250, y: 118, act: 'a', sc: 8.4, t: 'a=2.0 · 8.4s' },
+    { id: 'b1',  p: 'r',  x: 750, y: 118, act: 'b', sc: 7.1, t: 'b=0.90 · 7.1s' },
+    { id: 'aa',  p: 'a1', x: 125, y: 202, act: 'a', sc: 8.6, t: 'a=3.0 · 8.6s' },
+    { id: 'ab',  p: 'a1', x: 375, y: 202, act: 'b', sc: 7.5, t: 'a=2.0 b=0.90 · 7.5s' },
+    { id: 'ba',  p: 'b1', x: 625, y: 202, act: 'a', sc: 7.5, t: 'a=2.0 b=0.90 · 7.5s' },
+    { id: 'bb',  p: 'b1', x: 875, y: 202, act: 'b', sc: 6.4, t: 'b=0.81 · 6.4s' },
+    { id: 'aaa', p: 'aa', x: 70,  y: 286, act: 'a', sc: 8.9, t: 'a=4.0 · 8.9s' },
+    { id: 'aab', p: 'aa', x: 190, y: 286, act: 'b', sc: 8.1, t: 'a=3.0 b=0.90 · 8.1s' },
+    { id: 'aba', p: 'ab', x: 310, y: 286, act: 'a', sc: 8.1, t: 'a=3.0 b=0.90 · 8.1s' },
+    { id: 'abb', p: 'ab', x: 430, y: 286, act: 'b', sc: 6.8, t: 'a=2.0 b=0.81 · 6.8s' },
+    { id: 'baa', p: 'ba', x: 550, y: 286, act: 'a', sc: 8.1, t: 'a=3.0 b=0.90 · 8.1s' },
+    { id: 'bab', p: 'ba', x: 670, y: 286, act: 'b', sc: 6.8, t: 'a=2.0 b=0.81 · 6.8s' },
+    { id: 'bba', p: 'bb', x: 790, y: 286, act: 'a', sc: 6.8, t: 'a=2.0 b=0.81 · 6.8s' },
+    { id: 'bbb', p: 'bb', x: 910, y: 286, act: 'b', sc: 6.1, t: 'b=0.729 · 6.1s' }
   ];
-  const BEST = { r: 1, b1: 1, bb: 1, bbb: 1 };
-  const pruned = {};
   const byId = {};
   TOT.forEach(function (n) { byId[n.id] = n; });
   function kids(id) { return TOT.filter(function (n) { return n.p === id; }); }
+  function shownKids(id) { return kids(id).filter(function (n) { return shown[n.id]; }); }
+
+  let shown = { r: true };
+  let cur = 'r';
+  let pruned = {};
+  let calls = 1;
+
   function isPruned(n) {
     if (!n) return false;
     if (pruned[n.id]) return true;
@@ -237,44 +250,117 @@ __PAGER__
   function drawTot() {
     let s = '';
     TOT.forEach(function (n) {
-      if (n.p) {
-        const pa = byId[n.p];
-        s += '<path class="ge ' + (n.act === 'a' ? 'gea' : 'geb') + '" d="M' + pa.x + ' ' + (pa.y + 16) +
-             ' L' + n.x + ' ' + (n.y - 16) + '"></path>';
-      }
+      if (!n.p || !shown[n.id] || !shown[n.p]) return;
+      const pa = byId[n.p];
+      s += '<path class="ge ' + (n.act === 'a' ? 'gea' : 'geb') + '" d="M' + pa.x + ' ' + (pa.y + 16) +
+           ' L' + n.x + ' ' + (n.y - 16) + '"></path>';
     });
+    const leaves = TOT.filter(function (n) { return shown[n.id] && !isPruned(n) && shownKids(n.id).length === 0; });
+    let bestId = '';
+    leaves.forEach(function (n) { if (!bestId || n.sc < byId[bestId].sc) bestId = n.id; });
     TOT.forEach(function (n) {
+      if (!shown[n.id]) return;
       const bad = isPruned(n);
-      const best = !!BEST[n.id] && !bad;
+      const best = n.id === bestId && leaves.length > 1;
       const w = n.id === 'r' ? 176 : 112, h = 34;
-      s += '<rect class="gn' + (best ? ' best' : '') + (bad ? ' dim' : '') + '" x="' + (n.x - w / 2) + '" y="' + (n.y - 17) +
-           '" width="' + w + '" height="' + h + '" rx="2" data-id="' + n.id + '"></rect>';
+      s += '<rect class="gn' + (best ? ' best' : '') + (cur === n.id ? ' cur' : '') + (bad ? ' dim' : '') +
+           '" x="' + (n.x - w / 2) + '" y="' + (n.y - 17) + '" width="' + w + '" height="' + h +
+           '" rx="2" data-id="' + n.id + '"></rect>';
       s += '<text class="gt' + (bad ? ' dim' : '') + '" x="' + n.x + '" y="' + (n.y - 3) + '" text-anchor="middle" data-id="' + n.id + '">' +
            (n.act === 'a' ? 'a +1' : n.act === 'b' ? 'b −10%' : '起点') + '</text>';
       s += '<text class="gts' + (bad ? ' dim' : '') + '" x="' + n.x + '" y="' + (n.y + 10) + '" text-anchor="middle" data-id="' + n.id + '">' + n.t + '</text>';
     });
     s += '<text class="gts" x="500" y="336" text-anchor="middle">深度 3 = 8 条候选 · 深度 5 = 32 条 · 每条都要跑一次评估</text>';
     $('#totfig').innerHTML = s;
+    $('#totCalls').textContent = calls + ' 次评估';
+  }
 
-    const cut = TOT.filter(function (n) {
-      const pa = n.p ? byId[n.p] : null;
-      return pruned[n.id] && !(pa && isPruned(pa));
-    }).length;
-    const alive = TOT.filter(function (n) { return !isPruned(n); }).length;
-    $('#totst').innerHTML = cut === 0
-      ? '同一组动作可以反复叠加：a 连加三次到 a=4.0（8.9s，越调越慢），b 连降两次到 b=0.81（6.4s），三次到 b=0.729（6.1s，目前最优）。<b>点任意节点，剪掉这条分支。</b>'
-      : '剪掉 ' + cut + ' 处，剩下 <b>' + alive + '</b> 个节点还活着。剪枝省下的不是 token，是把它挪给更可能对的分支。';
+  function note(msg) {
+    const alive = TOT.filter(function (n) { return shown[n.id] && !isPruned(n); }).length;
+    $('#totst').textContent = msg + ' 存活 ' + alive + ' 个节点。';
+  }
+
+  /* 执行：在当前节点展开候选，取分最低的一条走进去，再展开它下面一层 */
+  function run() {
+    let pool = shownKids(cur).filter(function (n) { return !isPruned(n); });
+    if (!pool.length) {
+      kids(cur).forEach(function (n) { shown[n.id] = true; });
+      calls += kids(cur).length;
+      pool = shownKids(cur).filter(function (n) { return !isPruned(n); });
+      drawTot();
+    }
+    if (!pool.length) { note('这一层能走的分支都被剪掉了，先回溯。'); return; }
+    const pick = pool.reduce(function (a, b) { return a.sc < b.sc ? a : b; });
+    cur = pick.id;
+    drawTot();
+    note('取分最低的一条，走进 ' + pick.t + '。这一层还能不能往下，按「新建分支」看。');
+  }
+
+  /* 新建分支：在当前节点展开候选，但先不跟进 */
+  function branch() {
+    const un = kids(cur).filter(function (n) { return !shown[n.id]; });
+    if (un.length) {
+      un.forEach(function (n) { shown[n.id] = true; });
+      calls += un.length;
+      drawTot();
+      note('在 ' + byId[cur].t + ' 之下新开 ' + un.length + ' 条分支，人还停在这一层。');
+      return;
+    }
+    let up = byId[cur];
+    while (up.p) {
+      up = byId[up.p];
+      const sib = kids(up.id).filter(function (n) { return !shown[n.id]; });
+      if (sib.length) {
+        sib.forEach(function (n) { shown[n.id] = true; });
+        calls += sib.length;
+        cur = sib[0].id;
+        drawTot();
+        note('这一层已经开满，回到 ' + byId[cur].t + ' 换了一条新的。');
+        return;
+      }
+    }
+    note('这一深度以内都展开过了，按「执行」继续往下，或「剪掉当前」换个方向。');
+  }
+
+  function back() {
+    const me = byId[cur];
+    if (!me.p) { note('已经在起点。'); return; }
+    cur = me.p;
+    drawTot();
+    note('回溯到 ' + byId[cur].t + '，可以换一条分支重试。');
+  }
+
+  function prune() {
+    if (cur === 'r') { note('起点不能剪。'); return; }
+    pruned[cur] = !pruned[cur];
+    const wasCut = pruned[cur];
+    const at = cur;
+    drawTot();
+    if (wasCut) { cur = byId[at].p; drawTot(); note('剪掉 ' + byId[at].t + ' 及其下面的一切。'); }
+    else note('恢复了 ' + byId[at].t + ' 这条分支。');
+  }
+
+  function resetTot() {
+    shown = { r: true }; cur = 'r'; pruned = {}; calls = 1;
+    drawTot();
+    note('已重置，只留起点。按「执行」开始往下展开。');
   }
 
   $('#totfig').addEventListener('click', function (ev) {
     const id = ev.target.getAttribute('data-id');
-    if (!id || id === 'r') return;
-    const n = byId[id];
-    if (n.p && isPruned(byId[n.p])) return;
-    pruned[id] = !pruned[id];
+    if (!id || !shown[id] || isPruned(byId[id])) return;
+    cur = id;
     drawTot();
+    note('当前节点切到 ' + byId[id].t + '。');
   });
+
+  $('#totRun').addEventListener('click', run);
+  $('#totBranch').addEventListener('click', branch);
+  $('#totBack').addEventListener('click', back);
+  $('#totPrune').addEventListener('click', prune);
+  $('#totReset').addEventListener('click', resetTot);
   drawTot();
+  note('只展开了起点。按「执行」生成候选并往下走，按「新建分支」换一条路，按「回溯」退回上层。');
 
   /* ================= Plan-and-Execute ================= */
   const PLAN = [
