@@ -1483,6 +1483,9 @@ function bindSeg(selector, onChange) {
         <div class="term-bar"><span>shell · local</span><span id="termStatus">running</span></div>
         <pre id="termTxt"></pre>
       </div>
+      <div class="bubble" id="bub2" hidden>
+        <span class="who">assistant</span><span id="bub2Txt"></span><span class="caret" id="bub2Caret"></span>
+      </div>
     </div>
   </div>
 </div>
@@ -1584,6 +1587,7 @@ data: {"seq":28,"stream":"stdout","text":"64 bytes from 121.36.158.11"}</code></
   const chip = $('#chip'), emitMeta = $('#emitMeta'), rf = $('#rf10');
   const cap = $('#cap10'), evs = $('#evs'), evCount = $('#evCount'), clock = $('#clock');
   const bub = $('#bub'), bubTxt = $('#bubTxt'), bubCaret = $('#bubCaret');
+  const bub2 = $('#bub2'), bub2Txt = $('#bub2Txt'), bub2Caret = $('#bub2Caret');
   const term = $('#term'), termTxt = $('#termTxt'), termStatus = $('#termStatus');
   const uiEmpty = $('#uiEmpty'), uiRun = $('#uiRun'), uiState = $('#uiState');
   const I0 = cap.innerHTML;
@@ -1611,6 +1615,8 @@ data: {"seq":28,"stream":"stdout","text":"64 bytes from 121.36.158.11"}</code></
               '64 bytes from 121.36.158.11: icmp_seq=1 ttl=52 time=27.9 ms\n\n' +
               '--- www.huawei.com ping statistics ---\n' +
               '2 packets transmitted, 2 received, 0.0% packet loss';
+
+  const SUM = '链路正常：2 个 ICMP 包全部返回，平均 28.2 ms，丢包率 0.0%。可以排除链路与防火墙；如果业务侧仍然慢，接下来要查应用层的响应时间，而不是网络。';
 
   const CAP = {
     agent_start: '前端收到第一个事件：清界面、进运行态、开计时。<b>此时还没有任何内容</b>——用户看到的应该是"正在运行"，不是白屏。',
@@ -1642,7 +1648,10 @@ data: {"seq":28,"stream":"stdout","text":"64 bytes from 121.36.158.11"}</code></
   life('tool_delta_start', ['tool'], ['e_mt'], 'stream: stdout', 'tool', 'tool_call');
   chars('tool_delta', OUT, 'term', 'tool');
   life('tool_end', ['tool'], ['e_tm'], '{"call_id":"a3f","exit":0,"ms":2840}', 'tool', 'tool_call');
-  life('agent_end', ['end'], ['e_out'], '{"ms":6120,"tools":1,"tokens":94}', '', 'agent_end');
+  life('llm_start', ['model'], ['e_tm'], '{"id":"m2","model":"claude-sonnet"}', 'llm', 'model_call');
+  chars('llm_delta', SUM, 'bub2', 'llm');
+  life('llm_end', ['model'], ['e_tm'], '{"id":"m2","finish":"stop","tokens":96}', 'llm', 'model_call');
+  life('agent_end', ['end'], ['e_out'], '{"ms":7480,"tools":1,"tokens":190}', '', 'agent_end');
 
   let idx = -1, t = 0, seq = 0, streamRow = null, streamN = 0, curRow = null, done = false;
 
@@ -1735,10 +1744,10 @@ data: {"seq":28,"stream":"stdout","text":"64 bytes from 121.36.158.11"}</code></
     if (s.kind === 'char') {
       chip.textContent = s.ch === ' ' ? '·' : (s.ch === '\n' ? '⏎' : s.ch);
       emitMeta.textContent = (s.ev === 'tool_args_stream' ? 'tool_args' : s.ev);
-      if (s.target === 'bub') bubTxt.textContent += s.ch;
-      else termTxt.textContent += s.ch;
-      flyChar(s.ch, s.target === 'bub' ? bubTxt : termTxt, s.ck);
-      const tail = (s.target === 'bub' ? bubTxt.textContent : termTxt.textContent).slice(-18);
+      const tgtTxt = s.target === 'bub' ? bubTxt : (s.target === 'bub2' ? bub2Txt : termTxt);
+      tgtTxt.textContent += s.ch;
+      flyChar(s.ch, tgtTxt, s.ck);
+      const tail = tgtTxt.textContent.slice(-18);
       charRow(s.ev === 'tool_args_stream' ? 'tool_args' : s.ev, s.ck, tail);
       return;
     }
@@ -1751,8 +1760,11 @@ data: {"seq":28,"stream":"stdout","text":"64 bytes from 121.36.158.11"}</code></
     if (CAP[s.ev]) cap.innerHTML = '<span class="cap-k">' + s.ev + '</span>' + CAP[s.ev];
 
     if (s.ev === 'agent_start') { uiEmpty.hidden = true; uiRun.hidden = false; uiState.textContent = 'running'; }
-    if (s.ev === 'llm_start') { bub.hidden = false; }
-    if (s.ev === 'llm_end') { bubCaret.style.display = 'none'; }
+    if (s.ev === 'llm_start') {
+      if (bubTxt.textContent) { bub2.hidden = false; bub2Caret.style.display = 'inline-block'; }
+      else { bub.hidden = false; }
+    }
+    if (s.ev === 'llm_end') { bubCaret.style.display = 'none'; bub2Caret.style.display = 'none'; }
     if (s.ev === 'tool_start') { term.hidden = false; }
     if (s.ev === 'tool_end') { termStatus.textContent = 'exit 0 · 2.8s'; }
     if (s.ev === 'agent_end') { uiState.textContent = 'done'; }
