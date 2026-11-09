@@ -1489,7 +1489,7 @@ function bindSeg(selector, onChange) {
   <colgroup><col style="width:16%"><col style="width:26%"><col style="width:26%"><col style="width:32%"></colgroup>
   <thead><tr><th>跃迁</th><th>训练信号</th><th>能力增量</th><th>同时引入的新故障</th></tr></thead>
   <tbody>
-    <tr><td><b>RLHF</b></td><td>人类对两个回答的排序</td><td>从「续写」变成「回应」</td><td>奖励模型只是近似 → reward hacking；多样性下降</td></tr>
+    <tr><td><b>RLHF</b></td><td>人类对两个回答的排序</td><td>从「续写」变成「回应」</td><td>奖励模型只是近似；多样性下降</td></tr>
     <tr><td><b>function call</b></td><td>不训练，纯 schema 约束解码</td><td>输出可被程序消费</td><td>函数名幻觉、参数不合 schema、越权调用</td></tr>
     <tr><td><b>长思维链</b></td><td>答案对不对（可规则验证）</td><td>多步推理、自我检查</td><td>思考 token 直接变钱；延迟暴涨；过程不可控</td></tr>
     <tr><td><b>agentic RL</b></td><td>整条轨迹的最终任务成败</td><td>自己判断何时用哪个工具</td><td>环境搭建成本极高；奖励可被 hack；轨迹采样极贵</td></tr>
@@ -1530,11 +1530,10 @@ function bindSeg(selector, onChange) {
   const DATA = {
     m1: {
       no: '01 · 2017 → 2022-11-30', title: 'RLHF · 从人类偏好里学奖励',
-      p: '这条路走了五年。2017 年，Christiano 等人先解决了「怎么把人类偏好变成一个可优化的奖励函数」；2019 年，Ziegler 把它用到语言模型上；2022 年 3 月的 InstructGPT 拼齐了完整三步——人工示范做 SFT 冷启动、对同一问题的多个回答排序训出奖励模型、再用 PPO 拿这个奖励模型当裁判去优化生成策略。同年 11 月 30 日上线的 ChatGPT，把同一套流程推到了产品级体量。',
+      p: '2017 年，Christiano 等人先解决了「怎么把人类偏好变成一个可优化的奖励函数」；2019 年，Ziegler 把它用到语言模型上；2022 年 3 月的 InstructGPT 拼齐了完整三步——人工示范做 SFT 冷启动、对同一问题的多个回答排序训出奖励模型、再用 PPO 拿这个奖励模型当裁判去优化生成策略。同年 11 月 30 日上线的 ChatGPT，把同一套流程推到了产品级体量。',
       points: [
         ['质变在哪', '知识没变多，<b>行为变了</b>。base 模型会顺着你的话往下续写，RLHF 之后的模型会「回答你的问题」。这是第一次质变，不是第一次发明。'],
-        ['代价', '奖励模型只是人类偏好的近似。模型很快学会<b>讨好裁判</b>而不是完成任务——reward hacking 的起点。'],
-        ['对 agent 的意义', '没有这一步，就没有「听话的模型」。让一个不配合的模型去执行多步任务，第一步就会跑偏。']
+        ['对 agent 的意义', '模型从补全文本，变成以人类的偏好（对话）补全文本。']
       ],
       caps: [0, 1]
     },
@@ -1556,7 +1555,7 @@ function bindSeg(selector, onChange) {
         ['代价', '思考 token 是要付钱的。同一道题，思考 3000 token 和思考 200 token 的成本差 15 倍；延迟也直接翻倍。'],
         ['对 agent 的意义', '第 04 章那个循环之所以能收敛，靠的就是模型愿意在动手前先想一步。而第 05 章的可观测中间件，第一件要记的就是思考花了多少 token。']
       ],
-      caps: [0, 1, 3]
+      caps: [0, 1, 2, 3]
     },
     m4: {
       no: '04 · 2025 上半年', title: 'Agentic RL · 把工具使用训进策略',
