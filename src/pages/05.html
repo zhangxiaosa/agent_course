@@ -62,7 +62,7 @@
     <tr><td><b>工具卸载</b></td><td>after_tool</td><td>一次 <code>ls -R</code> 把几万行灌进上下文</td><td>模型要多花一次调用来读回全文</td></tr>
     <tr><td><b>可观测</b></td><td>全部</td><td>出问题时你不知道它当时看到了什么</td><td>日志本身占存储，脱敏要额外做</td></tr>
     <tr><td><b>人工审批</b></td><td>before_tool</td><td>模型直接生成 <code>rm -rf</code>，框架照单执行</td><td>每次打断都有人工成本，会劝退高频场景</td></tr>
-    <tr><td><b>model retry</b></td><td>after_model</td><td>429 / 超时 / 5xx 直接让整个 run 挂掉</td><td>重试放大会把上游打得更惨，必须退避</td></tr>
+    <tr><td><b>model retry</b></td><td>after_model</td><td>429 / 超时 / 5xx 直接让整个 run 挂掉</td><td>重试会叠加上游负载，需要退避与抖动</td></tr>
     <tr><td><b>evaluator</b></td><td>after_agent</td><td>模型说"做完了"，其实只做了一半</td><td>多一次判定调用；判定错了会无限打回</td></tr>
   </tbody>
 </table>
