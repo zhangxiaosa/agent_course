@@ -1442,7 +1442,7 @@ function bindSeg(selector, onChange) {
 <header class="ch-head">
   <span class="ch-no">06 / MEMORY</span>
   <h1>记忆：压缩与卸载</h1>
-  <p class="ch-lede">第 04 章那个循环有两个绕不过去的事实：<b>历史只增不减</b>，<b>工具输出没有上限</b>。这两件事撞在一起，第三十轮的 prompt 里会躺着几万 token 的废目录列表。这一章讲两条止血带。它们其实是同一件事——<b>给 agent 做虚拟内存</b>。</p>
+  <p class="ch-lede">第 04 章那个循环有两个绕不过去的事实：<b>历史只增不减</b>，<b>工具输出没有上限</b>。两者叠加，到第三十轮时 prompt 里已积累数万 token 的无效目录列表。这一章讲两条处理路径：<b>压缩历史</b>，<b>卸载工具输出</b>。</p>
 </header>
 
 <h2>① 上下文压缩 · 挂在 before_model</h2>
@@ -1484,17 +1484,17 @@ function bindSeg(selector, onChange) {
 
 <h3>压缩不能压什么</h3>
 
-<p>这是最容易踩坑的地方。摘要不是"把历史变短"，是<b>在有限预算下保住模型做决定所需的最小信息集</b>。四条硬规则：</p>
+<p>这一点最容易出错。摘要不是"把历史变短"，是<b>在有限预算下保住模型做决定所需的最小信息集</b>。四条硬规则：</p>
 
 <div class="tbl-wrap">
 <table>
   <colgroup><col style="width:26%"><col style="width:74%"></colgroup>
   <thead><tr><th>必须保留</th><th>压了会怎样</th></tr></thead>
   <tbody>
-    <tr><td><b>system prompt</b></td><td>里面有工具定义。压掉 = 模型不知道自己有什么工具，下一轮直接不调了。</td></tr>
-    <tr><td><b>最近 N 轮</b></td><td>当前这一步的判断依据全在这儿。压掉 = 它忘了刚才刚看到什么。</td></tr>
-    <tr><td><b>tool_call_id 配对</b></td><td>每一条 <code>tool</code> 消息都要对应一条 <code>assistant.tool_calls</code>。压断配对，请求直接 400——不是效果变差，是根本发不出去。</td></tr>
-    <tr><td><b>失败过的路径</b></td><td>「这条路试过，报错 xxx」是模型避免重复踩坑的唯一依据。压掉它，它会在第 14 轮再试一次同样的命令。</td></tr>
+    <tr><td><b>system prompt</b></td><td>内含工具定义。剔除后模型不再知道自己有哪些工具，下一轮不会发起工具调用。</td></tr>
+    <tr><td><b>最近 N 轮</b></td><td>当前这一步的判断依据全在这里。压缩后模型会丢失刚刚读取到的内容。</td></tr>
+    <tr><td><b>tool_call_id 配对</b></td><td>每一条 <code>tool</code> 消息都要对应一条 <code>assistant.tool_calls</code>。配对被破坏，请求直接返回 400——不是效果变差，是请求无法发出。</td></tr>
+    <tr><td><b>失败过的路径</b></td><td>「这条路试过，报错 xxx」是模型避免重复尝试的唯一依据。缺失这一条，模型会在第 14 轮再执行同一条命令。</td></tr>
   </tbody>
 </table>
 </div>
@@ -1563,9 +1563,9 @@ return head + note + tail;</code></pre>
 
 <p>注意 <code>saveToFile</code> 这一步：<b>裁剪不是丢弃，是换页</b>。全文必须还在某个地方，否则模型一旦真的需要中间那段，就永久失去了。</p>
 
-<h2>这两件事其实是虚拟内存</h2>
+<h2>两条路径对应同一套机制</h2>
 
-<p>把两个中间件放在一起看，会发现它们在做操作系统几十年前就做过的事：</p>
+<p>把两个中间件放在一起看，它们对应的是操作系统早已在用的同一套机制：</p>
 
 <div class="tbl-wrap">
 <table>
@@ -1665,7 +1665,7 @@ return head + note + tail;</code></pre>
     },
     {
       node: ['a_model'], edges: ['e_m'],
-      cap: ['after_model', '模型正常回答，<b>它并没有"发现"历史被压缩过</b>——摘要里保住了它需要的三个事实：仓库路径、已确认的两个依赖、一次失败的搜索。压缩的理想状态就是：被压掉的东西，模型本来也不再需要了。'],
+      cap: ['after_model', '模型正常回答，<b>它并没有"发现"历史被压缩过</b>——摘要里保住了它需要的三个事实：仓库路径、已确认的两个依赖、一次失败的搜索。压缩的理想状态是：被压缩掉的内容，模型本来也不再需要。'],
       state: { turn: 13, messages: 13, context_tokens: '13,860', budget: '32,000', compact: 'done · -28,270', last_error: '—' },
       msg: ['assistant', 'requirements.txt 里 <code>django==3.2.0</code> 对应 CVE-2021-45115（XSS），<code>requests==2.19.0</code> 对应 CVE-2018-18074（凭据泄漏）。建议升到 3.2.25 与 2.31.0。']
     }
