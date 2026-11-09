@@ -1487,17 +1487,17 @@ function bindSeg(selector, onChange) {
 <div class="tbl-wrap">
 <table>
   <colgroup><col style="width:16%"><col style="width:26%"><col style="width:26%"><col style="width:32%"></colgroup>
-  <thead><tr><th>跃迁</th><th>训练信号</th><th>能力增量</th><th>同时引入的新故障</th></tr></thead>
+  <thead><tr><th>跃迁</th><th>训练信号</th><th>能力增量</th><th>同时引入的新问题</th></tr></thead>
   <tbody>
-    <tr><td><b>RLHF</b></td><td>人类对两个回答的排序</td><td>从「续写」变成「回应」</td><td>奖励模型只是近似；多样性下降</td></tr>
-    <tr><td><b>function call</b></td><td>不训练，纯 schema 约束解码</td><td>输出可被程序消费</td><td>函数名幻觉、参数不合 schema、越权调用</td></tr>
-    <tr><td><b>长思维链</b></td><td>答案对不对（可规则验证）</td><td>多步推理、自我检查</td><td>思考 token 直接变钱；延迟暴涨；过程不可控</td></tr>
-    <tr><td><b>agentic RL</b></td><td>整条轨迹的最终任务成败</td><td>自己判断何时用哪个工具</td><td>环境搭建成本极高；奖励可被 hack；轨迹采样极贵</td></tr>
+    <tr><td><b>RLHF</b></td><td>人类对两个回答的排序</td><td>从「续写」变成「回应」</td><td>reward hacking</td></tr>
+    <tr><td><b>function call</b></td><td>不训练，纯 schema 约束解码</td><td>输出可被程序消费</td><td>参数不符合 schema</td></tr>
+    <tr><td><b>长思维链</b></td><td>答案对不对（可规则验证）</td><td>多步推理、自我检查</td><td>成本高</td></tr>
+    <tr><td><b>agentic RL</b></td><td>整条轨迹的最终任务成败</td><td>自己判断何时用哪个工具</td><td>绑定训练时的环境</td></tr>
   </tbody>
 </table>
 </div>
 
-<p>这也解释了为什么第 05 章之后要讲那么多中间件：<b>每一次能力跃迁，都是把一个新的不可控因素放进了系统</b>。中间件就是给这些不可控因素装的保险。</p>
+<p>这也解释了后面为什么需要中间件：<b>每一次能力跃迁，都会引入一个新的不可控因素</b>，中间件就在这些位置上做约束。</p>
 
 <h2>agentic RL 的时间坐标</h2>
 
