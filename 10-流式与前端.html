@@ -1026,6 +1026,19 @@ tr:last-child td { border-bottom: 0; }
 .egg-img { margin: 22px 0 0; }
 .egg-img img { display: block; margin: 0 auto; max-width: min(920px, 94vw); max-height: 84vh; height: auto; border: 1px solid var(--line); border-radius: 3px; box-shadow: 0 1px 4px rgba(0,0,0,.07); }
 
+/* 流式：字符从节点飞向渲染位置 */
+.fly {
+  position: fixed; z-index: 40; pointer-events: none;
+  font: 600 12px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  padding: 1px 3px; border-radius: 2px;
+  background: #fff; border: 1px solid currentColor;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  transition: transform .28s cubic-bezier(.35,.05,.3,1), opacity .28s ease-in;
+}
+.fly.k-llm { color: var(--blue); }
+.fly.k-tool { color: var(--cyan); }
+.fly.out { opacity: 0; }
+
 </style>
 </head>
 <body>
@@ -1678,6 +1691,42 @@ data: {"seq":28,"stream":"stdout","text":"64 bytes from 121.36.158.11"}</code></
     evCount.textContent = seq + ' events';
   }
 
+  /* 一个字从发它的节点飞到实际渲染的位置 */
+  let flying = 0;
+  function lastCharRect(el) {
+    const tn = el.lastChild;
+    if (!tn || tn.nodeType !== 3 || !tn.length) return null;
+    const r = document.createRange();
+    r.setStart(tn, tn.length - 1);
+    r.setEnd(tn, tn.length);
+    const rc = r.getBoundingClientRect();
+    return rc.width || rc.height ? rc : null;
+  }
+  function flyChar(ch, el, ck) {
+    if (ch === '\n' || ch === ' ') return;
+    if (flying > 36) return;
+    const nodeEl = flow.nodeEls[ck === 'tool' ? 'tool' : 'model'];
+    const rc = el && lastCharRect(el);
+    if (!nodeEl || !rc) return;
+    const a = nodeEl.getBoundingClientRect();
+    const f = document.createElement('div');
+    f.className = 'fly ' + (ck === 'tool' ? 'k-tool' : 'k-llm');
+    f.textContent = ch;
+    f.style.left = (a.left + a.width / 2 - 4) + 'px';
+    f.style.top = (a.top + a.height / 2 - 6) + 'px';
+    document.body.appendChild(f);
+    flying += 1;
+    const dx = rc.left - (a.left + a.width / 2 - 4);
+    const dy = rc.top - (a.top + a.height / 2 - 6);
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        f.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+        f.classList.add('out');
+      });
+    });
+    setTimeout(function () { f.remove(); flying -= 1; }, 320);
+  }
+
   function apply(s) {
     flow.highlight(s.node, s.edges || []);
     t += s.kind === 'char' ? 14 : 430;
@@ -1688,6 +1737,7 @@ data: {"seq":28,"stream":"stdout","text":"64 bytes from 121.36.158.11"}</code></
       emitMeta.textContent = (s.ev === 'tool_args_stream' ? 'tool_args' : s.ev);
       if (s.target === 'bub') bubTxt.textContent += s.ch;
       else termTxt.textContent += s.ch;
+      flyChar(s.ch, s.target === 'bub' ? bubTxt : termTxt, s.ck);
       const tail = (s.target === 'bub' ? bubTxt.textContent : termTxt.textContent).slice(-18);
       charRow(s.ev === 'tool_args_stream' ? 'tool_args' : s.ev, s.ck, tail);
       return;
