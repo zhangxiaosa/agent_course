@@ -1465,7 +1465,7 @@ function bindSeg(selector, onChange) {
 
 <h2>同一个需求的三个阶段</h2>
 
-<p>需求很简单：<b>读 <code>app.py</code>，数一下有多少行</b>。下面按三个阶段切换，看模型实际吐出来的东西差多少。</p>
+<p>需求很简单：<b>数出 <code>app.py</code> 里 <code>start_app</code> 出现了多少次</b>。下面按三个阶段切换，看模型实际吐出来的东西差多少。前两个阶段都是调一次 <code>grep</code>，把匹配行回灌给模型，由模型自己数；第三个阶段直接在沙箱里把过滤和计数接成管道，只回传一个数字。</p>
 
 <div class="seg" id="seg">
   <button class="seg-btn" data-v="fc" aria-selected="true">function calling</button>
@@ -1573,9 +1573,9 @@ function bindSeg(selector, onChange) {
 
 <h2>第三个阶段为什么是 code-as-action</h2>
 
-<p>前两个阶段都在优化「参数怎么传」，但它们共享同一个天花板：<b>一次工具调用只能表达一次动作</b>。模型想做"读文件、过滤、求和"三件事，就得来回三轮。</p>
+<p>前两个阶段都在优化「参数怎么传」，但它们共享同一个天花板：<b>一次工具调用只能表达一次动作</b>。上面那个需求里，grep 是第一步，计数是第二步——第二步没有对应的工具，只能交给模型在上下文里自己数。</p>
 
-<p>code-as-action 把这个天花板拆了。CodeAct（2024-02）的核心主张是：把动作空间从"一组函数签名"换成"一段可执行代码"。模型写 <code>sum(1 for l in open('f') if 'error' in l)</code>，一次就完成了读取、过滤、聚合三件事。</p>
+<p>code-as-action 把这个天花板拆了。CodeAct（2024-02）的核心主张是：把动作空间从"一组函数签名"换成"一段可执行代码"。模型写 <code>grep -n start_app app.py | wc -l</code>，过滤和计数在同一段脚本里完成，管道本身承担了原本需要模型接手的那一步。</p>
 
 <div class="tbl-wrap">
 <table>
@@ -1591,11 +1591,11 @@ function bindSeg(selector, onChange) {
 </table>
 </div>
 
-<p>注意最后一行"中间结果"——它直接连到第 06 章。function calling 时代，一次跑 <code>ls -R</code> 就是把几万行文件树灌进上下文；code-as-action 时代，这段输出留在沙箱里，模型只拿到 <code>len(result)</code>。<b>上下文压缩最好的办法，是根本不产生那些 token。</b></p>
+<p>注意"中间结果"这一行。function calling 时代，一次 grep 把全部匹配行灌进上下文，计数还得由模型完成；code-as-action 时代，管道在沙箱里跑完，模型只拿到 <code>37</code>。<b>上下文成本最低的做法，是根本不产生那些 token。</b></p>
 
 <div class="note" data-t="risk">
   <div class="bar"></div>
-  <div class="body"><b>安全边界随协议下沉</b>：function calling 时代，危险动作在宿主侧被路由表挡住；MCP 时代，工具来自第三方服务器，宿主必须决定信任谁；code-as-action 时代，模型直接写 shell，沙箱是唯一防线。协议越自由，第 08 章那个人工审批层就越不可省。</div>
+  <div class="body"><b>安全边界随协议下沉</b>：function calling 时代，危险动作在宿主侧被路由表挡住；MCP 时代，工具来自第三方服务器，宿主必须决定信任谁；code-as-action 时代，模型直接写 shell，沙箱是唯一防线。协议越自由，人工审批层就越不可省。</div>
 </div>
 
 <footer class="pager"><a class="prev" href="01-LLM的演进.html"><span class="dir">← 上一章</span>01 · LLM 的四次跃迁</a><a class="next" href="03-Agent的形态谱系.html"><span class="dir">下一章 →</span>03 · Agent 的形态谱系</a></footer>
@@ -1606,41 +1606,47 @@ function bindSeg(selector, onChange) {
     fc: {
       name: 'function calling · 2023-06-13',
       m: [
-        '// 模型输出（就是这段 JSON，别无其他）',
+        '// 需求：数出 app.py 里 start_app 出现了多少次',
+        '// 模型输出：一条 grep',
+        '',
         '{',
         '  "tool_calls": [{',
         '    "id": "call_a1",',
         '    "type": "function",',
         '    "function": {',
-        '      "name": "read_file",',
-        '      "arguments": "{\\"path\\":\\"app.py\\"}"',
+        '      "name": "run_shell",',
+        '      "arguments": "{\\"cmd\\":\\"grep -n start_app app.py\\"}"',
         '    }',
         '  }]',
         '}',
         '',
-        '// 注意：arguments 是一个「字符串」，',
-        '// 不是对象。模型经常在这里漏转义。'
+        '// 宿主执行后把匹配行回填：37 行，',
+        '// 连同行号，整段进入上下文。',
+        '',
+        '// 第二轮模型输出：',
+        '// "start_app 一共出现 37 次"',
+        '// 这个 37 是数出来的，不是算出来的。'
       ].join('\n'),
       h: [
         '// 宿主：路由表 + 校验 + 执行 + 回填',
         'const fn = registry[call.function.name];',
-        'if (!fn) throw new Error("unknown tool");   // 幻觉函数名',
+        'if (!fn) throw new Error("unknown tool");',
         '',
         'const args = schema.parse(',
-        '  JSON.parse(call.function.arguments)      // 可能 parse 失败',
+        '  JSON.parse(call.function.arguments)',
         ');',
         '',
-        'const out = await fn(args);',
+        'const out = await fn(args);      // grep -n start_app app.py',
         'messages.push({',
         '  role: "tool",',
         '  tool_call_id: call.id,',
-        '  content: out',
+        '  content: out                    // 37 行全部回灌',
         '});',
         '',
-        '// 数行数这一步，还得模型再想一轮：',
-        '// 把 12,000 行源码塞回上下文，让它自己数。'
+        '// 计数由模型完成：',
+        '// 它要在 37 行文本里逐条数，错一条就错一次。'
       ].join('\n'),
-      cap: '<span class="cap-k">function calling</span>模型只负责一件事：把"读 app.py"翻译成合法的 JSON 参数。路由、校验、执行、回填全在你这边。工具越多，这套胶水越厚——<b>每个宿主都要为每个工具重写一遍</b>。'
+      cap: '<span class="cap-k">function calling</span>模型把需求翻译成一条合法的 <code>grep</code> 命令，拿到 37 行匹配结果后又自己数了一遍。两次模型调用、一次工具执行，计数这一步由模型承担。工具越多，宿主要维护的路由与校验就越多。'
     },
     mcp: {
       name: 'MCP · 2024-11-25',
@@ -1648,16 +1654,16 @@ function bindSeg(selector, onChange) {
         '// 模型这一侧：几乎没变。',
         '{"type":"tool_use",',
         ' "id":"tu_7",',
-        ' "name":"read_file",',
-        ' "input":{"path":"app.py"}}',
+        ' "name":"run_shell",',
+        ' "input":{"cmd":"grep -n start_app app.py"}}',
         '',
-        '// 真正变的是它「怎么知道」有这个工具：',
+        '// 变的只是它「怎么知道」有这个工具：',
         '// 宿主启动时向每个 MCP Server 拉一次清单',
         '',
         '→ tools/list',
         '← {"tools":[{',
-        '     "name":"read_file",',
-        '     "description":"读取文件全文",',
+        '     "name":"run_shell",',
+        '     "description":"执行 shell 命令并返回 stdout",',
         '     "inputSchema": {...}',
         '   }]}'
       ].join('\n'),
@@ -1665,8 +1671,8 @@ function bindSeg(selector, onChange) {
         '// JSON-RPC 2.0 over stdio 或 HTTP',
         '→ {"jsonrpc":"2.0","id":7,"method":"tools/call",',
         '   "params":{',
-        '     "name":"read_file",',
-        '     "arguments":{"path":"app.py"}',
+        '     "name":"run_shell",',
+        '     "arguments":{"cmd":"grep -n start_app app.py"}',
         '   }}',
         '',
         '← {"jsonrpc":"2.0","id":7,"result":{',
@@ -1674,29 +1680,26 @@ function bindSeg(selector, onChange) {
         '     "isError":false',
         '   }}',
         '',
-        '// 宿主不再维护路由表，',
-        '// 只维护一张「哪个 server 有哪个 tool」的索引。',
-        '// 新增工具 = 挂一个新 server，宿主零改动。'
+        '// grep 的 37 行仍然整段回灌，',
+        '// 数这 37 行仍然由模型完成。',
+        '// 差别只在：这条命令是从哪个 server 拿到的。'
       ].join('\n'),
-      cap: '<span class="cap-k">MCP</span>注意模型侧的输出<b>几乎没有变化</b>。MCP 把"工具从哪来"这件事标准化了：<code>tools/list</code> 拿清单，<code>tools/call</code> 执行，JSON-RPC 承载，stdio 或 HTTP 传输。同一份 server，Claude、Cursor、VS Code 都能直接用。'
+      cap: '<span class="cap-k">MCP</span>模型侧的输出<b>几乎没有变化</b>：还是一条 grep，还是模型自己数。MCP 把"工具从哪来"标准化了——<code>tools/list</code> 拿清单，<code>tools/call</code> 执行，JSON-RPC 承载。同一份 server，Claude、Cursor、VS Code 都能直接用。'
     },
     code: {
       name: 'code-as-action · 2024-02 起',
       m: [
-        '# 模型直接写出要执行的代码',
-        'with open("app.py") as f:',
-        '    src = f.read()',
+        '# 模型不拼参数，直接写要执行的命令',
+        'grep -n start_app app.py | wc -l',
         '',
-        'print(len(src.splitlines()))',
+        '# 输出：37',
         '',
-        '# 三件事一次做完：读文件、切行、计数。',
-        '# 中间结果没有进上下文，',
-        '# 模型只看到最后那个数字：1247。',
+        '# 过滤与计数在沙箱里一次完成，',
+        '# 中间结果留在管道里，没有进入上下文。',
         '',
-        '# 更狠的写法：',
-        'import re',
-        'print(len([l for l in src.splitlines()',
-        '           if re.search(r"TODO|FIXME", l)]))'
+        '# 需要多一步加工时，脚本继续往下写：',
+        'grep -n start_app app.py | wc -l > /tmp/n',
+        'grep -n "start_app\\(" app.py | head -3'
       ].join('\n'),
       h: [
         '// 宿主只需要提供一件事：一个沙箱',
@@ -1707,14 +1710,14 @@ function bindSeg(selector, onChange) {
         '  mem: "512m"',
         '});',
         '',
-        '// 回传给模型的不是 12,000 行源码，',
-        '// 而是 stdout 里的「1247」：',
+        '// 回传给模型的不是 37 行匹配结果，',
+        '// 而是 stdout 里的「37」：',
         'messages.push({ role: "tool",',
-        '  content: r.stdout.slice(-2000) });',
+        '  content: r.stdout.trim() });',
         '',
-        '// 上下文只增加了 4 个字符。'
+        '// 上下文只增加了 2 个字符。'
       ].join('\n'),
-      cap: '<span class="cap-k">code-as-action</span>动作空间从"调用哪个函数"升级成"程序能表达的一切"。收益不只是少几轮往返，而是<b>中间结果留在沙箱、不进上下文</b>。代价也很直白：模型现在能写出任意代码，沙箱是唯一防线。'
+      cap: '<span class="cap-k">code-as-action</span>动作空间从"调用哪个函数"升级成"程序能表达的一切"。<code>grep | wc -l</code> 一次就把过滤和计数做完，模型拿到的是一个数字，不需要自己数。收益率不只是少几轮往返，而是<b>中间结果留在沙箱、不进上下文</b>；代价是模型能写出任意代码，沙箱是唯一防线。'
     }
   };
 
