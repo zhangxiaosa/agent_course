@@ -241,7 +241,7 @@ __PAGER__
       meta: 'turn 5 · 终止',
       state: S(5, '10 条', '2,448', 6, 'stop', '—'),
       msgs: [{ r: 'system', h: '<span class="ok">agent_end</span> · 交付补丁 · 耗时 3.4s · 8,944 tokens 累计（含 5 次 prompt 重放）' }],
-      cap: '<span class="cap-k">agent_end</span>循环退出。一次任务打了 5 次模型、4 次工具往返，累计输入 8,944 tokens，其中<b>真正新增的信息不到 400 tokens</b>——其余全是重放。这个比例就是成本结构的真相。'
+      cap: '<span class="cap-k">agent_end</span>循环退出。一次任务打了 5 次模型、4 次工具往返，累计输入 8,944 tokens。每一次调用都把此前产生的全部 token 重新送进模型，让它预测下一步；真正新增的内容<b>不到 400 tokens</b>，其余都是重放。'
     }
   ];
 
