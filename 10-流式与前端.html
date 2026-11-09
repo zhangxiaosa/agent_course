@@ -1787,7 +1787,10 @@ data: {"seq":28,"stream":"stdout","text":"64 bytes from 121.36.158.11"}</code></
     rf.textContent = 'idle';
     uiState.textContent = 'idle';
     bub.hidden = true; bubTxt.textContent = ''; bubCaret.style.display = '';
+    bub2.hidden = true; bub2Txt.textContent = ''; bub2Caret.style.display = '';
     term.hidden = true; termTxt.textContent = ''; termStatus.textContent = 'running';
+    document.querySelectorAll('.fly').forEach(function (f) { f.remove(); });
+    flying = 0;
     uiEmpty.hidden = false; uiRun.hidden = true;
     flow.reset();
     cap.innerHTML = I0;
