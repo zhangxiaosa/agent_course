@@ -1577,7 +1577,7 @@ data: {"seq":28,"stream":"stdout","text":"64 bytes from 121.36.158.11"}</code></
 
 <div class="note" data-t="risk">
   <div class="bar"></div>
-  <div class="body"><b>delta 拼出来的文本，不一定是最终文本</b>。模型可能被截断、被过滤，工具输出也可能乱序。<b><code>llm_end</code> / <code>tool_end</code> 里要带完整结果，前端以它为准</b>。只信 delta 的实现，会在长回答上偶发地少字、重复字——而且极难复现。</div>
+  <div class="body"><b>delta 拼出来的文本，不一定是最终文本</b>。模型可能被截断、被过滤，工具输出也可能乱序。所以协议里要有 <b><code>llm_content</b></code> / <b><code>tool_content</b></code> 这类事件，随结束事件一起带上完整结果，<b>前端以它为准，delta 只用于过程中的实时渲染</b>。只信 delta 的实现，会在长回答上偶发地少字、重复字——而且极难复现。</div>
 </div>
 
 <footer class="pager"><a class="prev" href="09-控制流中间件.html"><span class="dir">← 上一章</span>09 · 控制流：重试与评测</a><a class="next" href="11-决策模型.html"><span class="dir">下一章 →</span>11 · 决策模型</a></footer>
@@ -1621,7 +1621,7 @@ data: {"seq":28,"stream":"stdout","text":"64 bytes from 121.36.158.11"}</code></
   const CAP = {
     agent_start: '前端收到第一个事件：清界面、进运行态、开计时。<b>此时还没有任何内容</b>——用户看到的应该是"正在运行"，不是白屏。',
     llm_start: '模型开始生成。<b>气泡先出现、但是空的</b>——第一个 delta 要等 TTFT，这段等待必须被一个"正在说话的空框"填住。',
-    llm_end: '生成结束。<b>前端最后做的不是"停打字"，是用 final 校正全文</b>——delta 拼出来的版本和最终版不一定一致。',
+    llm_end: '生成结束。<b>前端最后做的不是"停打字"，是用 <code>llm_content</code> 校正全文</b>——delta 拼出来的版本和这份完整结果不一定一致。',
     tool_start: '模型决定调工具。<b>终端框在这一刻建出来</b>，不是等命令跑完——用户先看到一个空壳，知道它要去执行了。',
     tool_end: '框闭合，显示 exit code。<b>从这个时刻起这个框可以被折叠、复制、审计</b>——它从"过程"变成了"记录"。',
     agent_end: '收口。前端汇总耗时、token、工具次数，把一次"过程"折成一条"结果"。到这里，用户才真正看见 agent 做了什么。'
