@@ -1577,7 +1577,7 @@ data: {"seq":28,"stream":"stdout","text":"64 bytes from 121.36.158.11"}</code></
 
 <div class="note" data-t="risk">
   <div class="bar"></div>
-  <div class="body"><b>delta 拼出来的文本，不一定是最终文本</b>。模型可能被截断、被过滤，工具输出也可能乱序。所以协议里要有 <b><code>llm_content</b></code> / <b><code>tool_content</b></code> 这类事件，随结束事件一起带上完整结果，<b>前端以它为准，delta 只用于过程中的实时渲染</b>。只信 delta 的实现，会在长回答上偶发地少字、重复字——而且极难复现。</div>
+  <div class="body"><b>delta 拼出来的文本，不一定是最终文本</b>。模型可能被截断、被过滤，工具输出也可能乱序。所以协议里要有 <code>llm_content</code> / <code>tool_content</code> 这类事件，随结束事件一起带上完整结果，<b>前端以它为准，delta 只用于过程中的实时渲染</b>。只信 delta 的实现，会在长回答上偶发地少字、重复字——而且极难复现。</div>
 </div>
 
 <footer class="pager"><a class="prev" href="09-控制流中间件.html"><span class="dir">← 上一章</span>09 · 控制流：重试与评测</a><a class="next" href="11-决策模型.html"><span class="dir">下一章 →</span>11 · 决策模型</a></footer>
