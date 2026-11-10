@@ -146,11 +146,10 @@ return head + note + tail;</code></pre>
 
 <div class="tbl-wrap">
 <table>
-  <colgroup><col style="width:18%"><col style="width:20%"><col style="width:30%"><col style="width:16%"><col style="width:16%"></colgroup>
+  <colgroup><col style="width:14%"><col style="width:24%"><col style="width:28%"><col style="width:20%"><col style="width:14%"></colgroup>
   <thead><tr><th>层</th><th>存在哪</th><th>存什么</th><th>怎么取回</th><th>谁负责写</th></tr></thead>
   <tbody>
-    <tr><td><b>上下文窗口</b></td><td>内存（messages）</td><td>最近 N 轮、当前任务</td><td>直接进 prompt</td><td>循环自动追加</td></tr>
-    <tr><td><b>工作记忆</b></td><td>state / scratchpad</td><td>计划、待办、已确认的事实</td><td>每轮注入到 system 末尾</td><td>中间件读写</td></tr>
+    <tr><td><b>短期记忆</b></td><td><code>checkpointer</code> 里的 <code>messages</code>；<code>state</code> / scratchpad</td><td>最近 N 轮与当前任务；计划、待办、已确认的事实</td><td><code>messages</code> 直接进 prompt；<code>state</code> 每轮注入 system 末尾</td><td>循环自动追加；中间件读写</td></tr>
     <tr><td><b>长期记忆</b></td><td>向量库 + 图</td><td>跨会话偏好、项目知识、失败教训</td><td>检索 top-k 注入</td><td>写入前要抽取、去重、合并</td></tr>
     <tr><td><b>归档</b></td><td>对象存储 / 文件</td><td>原始日志、完整工具输出、trace</td><td>按 id 按需加载</td><td>卸载 / 可观测中间件</td></tr>
   </tbody>
