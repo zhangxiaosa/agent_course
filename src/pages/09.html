@@ -207,7 +207,12 @@ __PAGER__
       msg: ['tool', 'search_cve({"q":"pyyaml 5.4.1"})<br>→ CVE-2020-14343 · 9.8 critical']
     },
     {
-      node: ['end'], edges: ['e_loop', 'e_bm', 'e_exit'],
+      node: ['a_model'], edges: ['e_am'],
+      cap: ['model_call · 处理工具结果', '工具返回 CVE-2020-14343 之后，模型要把这条结果并进结论：补上补丁版本与影响说明。<b>judge 核对的是模型输出的结论，不是工具返回值</b>，所以这一步不能省。'],
+      msg: ['assistant', '补充修复 pyyaml 5.4.1 → 6.0.1（CVE-2020-14343，任意代码执行）。现在 3/3 高危包全部覆盖。']
+    },
+    {
+      node: ['end'], edges: ['e_exit'],
       cap: ['再评审 · 通过', 'judge 第二次核对：3/3 覆盖，每条都给了版本与补丁。<b>这才是真正的 agent_end。</b>'],
       msg: ['judge', '<span style="color:var(--green)">PASS</span> · 覆盖度 3/3<br>任务达成，允许结束。']
     }
