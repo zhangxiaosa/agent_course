@@ -1026,6 +1026,19 @@ tr:last-child td { border-bottom: 0; }
 .egg-img { margin: 22px 0 0; }
 .egg-img img { display: block; margin: 0 auto; max-width: min(920px, 94vw); max-height: 84vh; height: auto; border: 1px solid var(--line); border-radius: 3px; box-shadow: 0 1px 4px rgba(0,0,0,.07); }
 
+/* 流式：字符从节点飞向渲染位置 */
+.fly {
+  position: fixed; z-index: 40; pointer-events: none;
+  font: 600 12px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  padding: 1px 3px; border-radius: 2px;
+  background: #fff; border: 1px solid currentColor;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  transition: transform .28s cubic-bezier(.35,.05,.3,1), opacity .28s ease-in;
+}
+.fly.k-llm { color: var(--blue); }
+.fly.k-tool { color: var(--cyan); }
+.fly.out { opacity: 0; }
+
 </style>
 </head>
 <body>
@@ -1491,7 +1504,7 @@ function bindSeg(selector, onChange) {
   <colgroup><col style="width:26%"><col style="width:74%"></colgroup>
   <thead><tr><th>必须保留</th><th>压了会怎样</th></tr></thead>
   <tbody>
-    <tr><td><b>system prompt</b></td><td>内含工具定义。剔除后模型不再知道自己有哪些工具，下一轮不会发起工具调用。</td></tr>
+    <tr><td><b>system prompt 与首条需求</b></td><td>前者含工具定义，后者是这次任务的目标。剔除工具定义，模型不再知道自己有哪些工具；丢掉首条需求，后面所有判断都失去依据。两者都要原样保留。</td></tr>
     <tr><td><b>最近 N 轮</b></td><td>当前这一步的判断依据全在这里。压缩后模型会丢失刚刚读取到的内容。</td></tr>
     <tr><td><b>tool_call_id 配对</b></td><td>每一条 <code>tool</code> 消息都要对应一条 <code>assistant.tool_calls</code>。配对被破坏，请求直接返回 400——不是效果变差，是请求无法发出。</td></tr>
     <tr><td><b>失败过的路径</b></td><td>「这条路试过，报错 xxx」是模型避免重复尝试的唯一依据。缺失这一条，模型会在第 14 轮再执行同一条命令。</td></tr>
@@ -1649,12 +1662,12 @@ return head + note + tail;</code></pre>
     },
     {
       node: ['b_model'], edges: [],
-      cap: ['COMPACT · 挑要被摘要的区间', '选 turn 3–9 的 14 条消息交给小模型做摘要。这个区间的选择有讲究：<b>system 和最近 3 轮必须原样保留</b>，只能压中间那段"已经用完、但还占着位置"的历史。'],
+      cap: ['COMPACT · 挑要被摘要的区间', '选 turn 3–9 的 14 条消息交给小模型做摘要。这个区间的选择有讲究：<b>system、首条 user 需求、最近 3 轮必须原样保留</b>，只能压中间那段"已经用完、但还占着位置"的历史。'],
       state: { turn: 12, messages: '24 → 待压 14', context_tokens: '41,200', budget: '32,000', compact: 'running', last_error: '—' }
     },
     {
       node: ['b_model'], edges: [],
-      cap: ['COMPACT · 写回 checkpoint', '摘要回来：<b>14 条 → 1 条，4,200 token 换掉原来的 28,000</b>。<code>messages</code> 数组被就地改写——注意右侧，那 14 条真的没了。'],
+      cap: ['COMPACT · 写回 checkpoint', '摘要回来：<b>14 条 → 1 条，4,200 token 换掉原来的 28,000</b>。<code>messages</code> 数组被就地改写——注意右侧，那 14 条真的没了，而 system 与开头那条 user 需求原样留在原位。'],
       state: { turn: 12, messages: 11, context_tokens: '12,930', budget: '32,000', compact: 'done · -28,270', last_error: '—' },
       rewrite: true
     },
@@ -1665,7 +1678,7 @@ return head + note + tail;</code></pre>
     },
     {
       node: ['a_model'], edges: ['e_m'],
-      cap: ['after_model', '模型正常回答，<b>它并没有"发现"历史被压缩过</b>——摘要里保住了它需要的三个事实：仓库路径、已确认的两个依赖、一次失败的搜索。压缩的理想状态是：被压缩掉的内容，模型本来也不再需要。'],
+      cap: ['after_model', '模型正常回答，<b>它并没有"发现"历史被压缩过</b>——摘要里保住了它需要的三个事实：仓库路径、已确认的两个依赖、一次失败的搜索；原始需求也还在原位，它要回答的问题没变。压缩的理想状态是：被压缩掉的内容，模型本来也不再需要。'],
       state: { turn: 13, messages: 13, context_tokens: '13,860', budget: '32,000', compact: 'done · -28,270', last_error: '—' },
       msg: ['assistant', 'requirements.txt 里 <code>django==3.2.0</code> 对应 CVE-2021-45115（XSS），<code>requests==2.19.0</code> 对应 CVE-2018-18074（凭据泄漏）。建议升到 3.2.25 与 2.31.0。']
     }
@@ -1673,6 +1686,7 @@ return head + note + tail;</code></pre>
 
   const COMPRESSED = [
     ['system', '你是仓库维护 agent。可用工具：<code>list_dir</code> / <code>read_file</code> / <code>search_cve</code>。'],
+    ['user', '检查 /repo 的 Python 依赖，找出带高危漏洞的包，给出补丁。'],
     ['summary', '<b>[turn 3–9 的摘要 · 4,200 tok]</b><br>仓库 /repo 含 requirements.txt / app.py / README.md。依赖 3 个：django==3.2.0、requests==2.19.0、flask==2.0.1。已对 django 执行过 search_cve，返回 1 条高危。曾尝试读 app.py 全文（12,000 行）——<b>已判断为不必要，放弃</b>。'],
     ['assistant', '读依赖。<code>read_file({"path":"/repo/requirements.txt"})</code>'],
     ['tool', 'django==3.2.0\nrequests==2.19.0\nflask==2.0.1'],
