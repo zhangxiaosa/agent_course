@@ -131,7 +131,7 @@ return head + note + tail;</code></pre>
   <colgroup><col style="width:22%"><col style="width:26%"><col style="width:26%"><col style="width:26%"></colgroup>
   <thead><tr><th>操作系统</th><th>对应到 agent</th><th>触发条件</th><th>回退手段</th></th></tr></thead>
   <tbody>
-    <tr><td><b>缓存逐出</b></td><td>上下文压缩</td><td>token 超预算</td><td>摘要里保留关键事实（不可逆，有损）</td></tr>
+    <tr><td><b>日志轮转</b></td><td>上下文压缩</td><td>token 超预算</td><td>摘要里保留关键事实（原始记录已删，不可回读）</td></tr>
     <tr><td><b>换页到磁盘</b></td><td>工具输出卸载</td><td>单条消息超阈值</td><td>按 <code>result_&lt;id&gt;.txt</code> 读回（无损）</td></tr>
     <tr><td><b>按需调入</b></td><td>长期记忆检索</td><td>新会话开始 / 相关度命中</td><td>向量召回 top-k 注入</td></tr>
   </tbody>
