@@ -67,14 +67,14 @@
 
 <div class="tbl-wrap">
 <table>
-  <colgroup><col style="width:24%"><col style="width:40%"><col style="width:36%"></colgroup>
-  <thead><tr><th>字段</th><th>为什么记</th><th>怎么记才安全</th></tr></thead>
+  <colgroup><col style="width:30%"><col style="width:70%"></colgroup>
+  <thead><tr><th>字段</th><th>为什么记</th></tr></thead>
   <tbody>
-    <tr><td><b>完整 prompt</b></td><td>复现"它当时到底看到了什么"的唯一办法</td><td>脱敏后存；或只存 hash + 变更 diff</td></tr>
-    <tr><td><b>tool 参数</b></td><td>判断危险调用、排查参数错误</td><td>路径、密钥、token 一律打码</td></tr>
-    <tr><td><b>tool 输出大小</b></td><td>发现"上下文被撑爆"的源头</td><td>记字节数即可，不必存全文</td></tr>
-    <tr><td><b>TTFT</b></td><td>首 token 延迟直接决定体感速度</td><td>和总耗时分开记，两者不是一回事</td></tr>
-    <tr><td><b>finish_reason</b></td><td>区分"正常结束"和"被截断"</td><td>截断要单独告警，它会悄悄丢答案</td></tr>
+    <tr><td><b>完整 prompt</b></td><td>复现「它当时到底看到了什么」的唯一办法</td></tr>
+    <tr><td><b>tool 参数</b></td><td>判断危险调用、排查参数错误</td></tr>
+    <tr><td><b>tool 输出大小</b></td><td>发现「上下文被撑爆」的源头</td></tr>
+    <tr><td><b>TTFT</b></td><td>首 token 延迟直接决定体感速度；和总耗时分开记，两者不是一回事</td></tr>
+    <tr><td><b>finish_reason</b></td><td>区分「正常结束」和「被截断」；截断要单独告警，它会悄悄丢答案</td></tr>
   </tbody>
 </table>
 </div>
