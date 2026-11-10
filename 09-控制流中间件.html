@@ -1566,7 +1566,7 @@ function bindSeg(selector, onChange) {
     <tr><td>压缩</td><td>before_model</td><td>改 messages（少）</td><td>上下文不会爆</td></tr>
     <tr><td>卸载</td><td>after_tool</td><td>改 messages（换页）</td><td>工具不会撑爆上下文</td></tr>
     <tr><td>可观测</td><td>全部</td><td>只读，不改</td><td>出了问题能查、能算账</td></tr>
-    <tr><td>审批</td><td>before_tool</td><td>停住，等人</td><td>危险动作有人兜</td></tr>
+    <tr><td>审批</td><td>before_tool</td><td>挂起，等人审批</td><td>危险动作有人兜底</td></tr>
     <tr><td>重试</td><td>after_model</td><td>jump 回 before_model</td><td>瞬时失败不终止任务</td></tr>
     <tr><td>评审</td><td>after_agent</td><td>插 feedback + jump 回</td><td>"声称完成"不等于完成</td></tr>
   </tbody>
