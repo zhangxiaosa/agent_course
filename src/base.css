@@ -1029,9 +1029,3 @@ tr:last-child td { border-bottom: 0; }
 .fly.k-llm { color: var(--blue); }
 .fly.k-tool { color: var(--cyan); }
 .fly.out { opacity: 0; }
-
-/* 彩蛋：三个视角 */
-.egg-text { max-width: 800px; margin: 0 auto; padding: 6px 0 0; font-size: 15px; line-height: 1.9; color: var(--text-2); }
-.egg-text p { margin: 0 0 14px; }
-.egg-text b { color: var(--text); }
-.egg-text code { font-size: 13px; color: var(--text); background: var(--panel-2); padding: 1px 4px; border-radius: 2px; }
