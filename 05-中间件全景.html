@@ -1026,6 +1026,19 @@ tr:last-child td { border-bottom: 0; }
 .egg-img { margin: 22px 0 0; }
 .egg-img img { display: block; margin: 0 auto; max-width: min(920px, 94vw); max-height: 84vh; height: auto; border: 1px solid var(--line); border-radius: 3px; box-shadow: 0 1px 4px rgba(0,0,0,.07); }
 
+/* 流式：字符从节点飞向渲染位置 */
+.fly {
+  position: fixed; z-index: 40; pointer-events: none;
+  font: 600 12px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  padding: 1px 3px; border-radius: 2px;
+  background: #fff; border: 1px solid currentColor;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  transition: transform .28s cubic-bezier(.35,.05,.3,1), opacity .28s ease-in;
+}
+.fly.k-llm { color: var(--blue); }
+.fly.k-tool { color: var(--cyan); }
+.fly.out { opacity: 0; }
+
 </style>
 </head>
 <body>
@@ -1442,7 +1455,7 @@ function bindSeg(selector, onChange) {
 <header class="ch-head">
   <span class="ch-no">05 / MIDDLEWARE</span>
   <h1>中间件全景</h1>
-  <p class="ch-lede">你见过的所有"agent 能力"——压缩记忆、卸载大输出、记录 trace、拦截危险命令、失败重试、验收打回——<b>没有一个是新功能</b>。它们全都是同一套钩子的不同用法。</p>
+  <p class="ch-lede">你见过的所有"agent 能力"——压缩记忆、卸载大输出、记录 trace、拦截危险命令、失败重试、验收打回——<b>没有一个是新功能</b>。它们全都是同一套钩子的不同用法。从这里开始，讲的是 <b>DevKit AI</b> 的内部逻辑：这些能力没有各自造一套机制，全部收在同一组钩子上。</p>
 </header>
 
 <h2>钩子在哪</h2>

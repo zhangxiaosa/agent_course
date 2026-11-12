@@ -1455,7 +1455,7 @@ function bindSeg(selector, onChange) {
 <header class="ch-head">
   <span class="ch-no">06 / MEMORY</span>
   <h1>记忆：压缩与卸载</h1>
-  <p class="ch-lede">第 04 章那个循环有两个绕不过去的事实：<b>历史只增不减</b>，<b>工具输出没有上限</b>。两者叠加，到第三十轮时 prompt 里已积累数万 token 的无效目录列表。这一章讲两条处理路径：<b>压缩历史</b>，<b>卸载工具输出</b>。</p>
+  <p class="ch-lede">第 04 章那个循环有两个绕不过去的事实：<b>历史只增不减</b>，<b>工具输出没有上限</b>。两者叠加，到第三十轮时 prompt 里已积累数万 token 的无效目录列表。这一章讲两条处理路径：<b>压缩历史</b>，<b>卸载工具输出</b>。在 DevKit AI 里，它们分别落在 <code>before_model</code> 与 <code>after_tool</code> 两个钩子上。</p>
 </header>
 
 <h2>① 上下文压缩 · 挂在 before_model</h2>
@@ -1596,7 +1596,7 @@ return head + note + tail;</code></pre>
 
 <h2>再往前一步：完整的记忆系统长什么样</h2>
 
-<p>压缩和卸载只解决"装不下"。真实产品里还有第三个问题：<b>该记的没记住</b>。用户上周说过"我们只用 Python 3.11"，这周开新会话，agent 一无所知。这就需要一个真正的记忆层。</p>
+<p>压缩和卸载只解决"装不下"。真实产品里还有第三个问题：<b>该记的没记住</b>。用户上周说过"我们只用 Python 3.11"，这周开新会话，agent 一无所知。这就需要一个真正的记忆层。这一层在 DevKit AI 里对应 <b>oG-Memory</b> 的一部分能力：记忆的写入、检索与治理由它承担，DevKit AI 负责把结果接进循环。两边目前处于联创阶段，下面的分层是双方共同对齐的形态。</p>
 
 <div class="tbl-wrap">
 <table>
