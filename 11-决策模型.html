@@ -1026,19 +1026,6 @@ tr:last-child td { border-bottom: 0; }
 .egg-img { margin: 22px 0 0; }
 .egg-img img { display: block; margin: 0 auto; max-width: min(920px, 94vw); max-height: 84vh; height: auto; border: 1px solid var(--line); border-radius: 3px; box-shadow: 0 1px 4px rgba(0,0,0,.07); }
 
-/* 流式：字符从节点飞向渲染位置 */
-.fly {
-  position: fixed; z-index: 40; pointer-events: none;
-  font: 600 12px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  padding: 1px 3px; border-radius: 2px;
-  background: #fff; border: 1px solid currentColor;
-  box-shadow: 0 1px 3px rgba(0,0,0,.08);
-  transition: transform .28s cubic-bezier(.35,.05,.3,1), opacity .28s ease-in;
-}
-.fly.k-llm { color: var(--blue); }
-.fly.k-tool { color: var(--cyan); }
-.fly.out { opacity: 0; }
-
 </style>
 </head>
 <body>
@@ -1455,7 +1442,7 @@ function bindSeg(selector, onChange) {
 <header class="ch-head">
   <span class="ch-no">11 / DECISION</span>
   <h1>决策：把「选一个」从生成里拆出来</h1>
-  <p class="ch-lede">agent 每转一圈，真正要回答的问题只有几类：<b>下一步调哪个工具、这条命令要不要批、这次算不算做完</b>。语言模型也能回答，但它回答的方式是"写一段话出来"——写 JSON，再解析。决策模型把这件事件换成另一种形式：<b>给候选打分，选最高分</b>。它目前还没有接进 DevKit AI，属于下一步的候选方向：等打分与阈值这套机制跑稳，再考虑替换循环里那几处「选一个」。</p>
+  <p class="ch-lede">agent 每转一圈，真正要回答的问题只有几类：<b>下一步调哪个工具、这条命令要不要批、这次算不算做完</b>。语言模型也能回答，但它回答的方式是"写一段话出来"——写 JSON，再解析。决策模型把这件事件换成另一种形式：<b>给候选打分，选最高分</b>。</p>
 </header>
 
 <h2>用生成做决策，代价在哪</h2>

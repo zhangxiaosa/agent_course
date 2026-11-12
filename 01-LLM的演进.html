@@ -1026,19 +1026,6 @@ tr:last-child td { border-bottom: 0; }
 .egg-img { margin: 22px 0 0; }
 .egg-img img { display: block; margin: 0 auto; max-width: min(920px, 94vw); max-height: 84vh; height: auto; border: 1px solid var(--line); border-radius: 3px; box-shadow: 0 1px 4px rgba(0,0,0,.07); }
 
-/* 流式：字符从节点飞向渲染位置 */
-.fly {
-  position: fixed; z-index: 40; pointer-events: none;
-  font: 600 12px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  padding: 1px 3px; border-radius: 2px;
-  background: #fff; border: 1px solid currentColor;
-  box-shadow: 0 1px 3px rgba(0,0,0,.08);
-  transition: transform .28s cubic-bezier(.35,.05,.3,1), opacity .28s ease-in;
-}
-.fly.k-llm { color: var(--blue); }
-.fly.k-tool { color: var(--cyan); }
-.fly.out { opacity: 0; }
-
 </style>
 </head>
 <body>
